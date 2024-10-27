@@ -84,7 +84,7 @@ impl<'b> ExprBuilder<'b> {
         .bump(self.bump)
     }
     pub fn lit(&self, val: f32) -> &'b Expression<'b> {
-        Expression::Lit(val.into()).bump(self.bump)
+        Expression::Lit(val).bump(self.bump)
     }
     pub fn num_param(&self, val: u32) -> &'b Expression<'b> {
         Expression::NumberedParam(val).bump(self.bump)

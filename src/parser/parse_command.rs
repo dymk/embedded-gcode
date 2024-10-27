@@ -30,11 +30,11 @@ pub fn parse_command<'a, 'b>(
         multispace0,
         alt((
             parse_comment(bump),
-            parse_command('G', Command::G, parse_gcode),
-            parse_command('M', Command::M, parse_mcode),
+            parse_command('G', Command::G, parse_gcode()),
+            parse_command('M', Command::M, parse_mcode()),
             parse_command('O', Command::O, parse_ocode(bump)),
-            parse_command('S', Command::S, parse_scode),
-            parse_command('T', Command::T, parse_tcode),
+            parse_command('S', Command::S, parse_scode()),
+            parse_command('T', Command::T, parse_tcode()),
         )),
     )
 }

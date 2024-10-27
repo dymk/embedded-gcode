@@ -6,7 +6,7 @@ macro_rules! enum_value_map {
             $($variant,)*
         }
 
-        impl crate::enum_value_map::EnumValueMap for $name {
+        impl $crate::enum_value_map::EnumValueMap for $name {
             type Value = $ty;
 
             fn from_value(value: $ty) -> Option<Self> {

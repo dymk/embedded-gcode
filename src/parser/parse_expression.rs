@@ -29,7 +29,7 @@ fn parse_atom<'a, 'b>(
         // local named parameter
         delimited(tag("#<"), parse_named_local_param(bump), tag(">")),
         // numbered parameter
-        preceded(tag("#"), parse_numbered_param),
+        preceded(tag("#"), parse_numbered_param()),
         // number literal
         map_res(float, |f| ok(Expression::Lit(f))),
     ))
@@ -90,7 +90,7 @@ pub fn parse_expression<'a, 'b>(
 fn parse_named_local_param<'a, 'b>(
     bump: &'b BumpInto<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
-    map_res(parse_name(&bump), |name| {
+    map_res(parse_name(bump), |name| {
         ok(Expression::NamedLocalParam(name))
     })
 }
@@ -98,14 +98,13 @@ fn parse_named_local_param<'a, 'b>(
 fn parse_named_global_param<'a, 'b>(
     bump: &'b BumpInto<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
-    map_res(parse_name(&bump), |name| {
+    map_res(parse_name(bump), |name| {
         ok(Expression::NamedGlobalParam(name))
     })
 }
 
-fn parse_numbered_param<'a, 'b>(input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
-    let (input, digit) = parse_u32(input)?;
-    Ok((input, Expression::NumberedParam(digit)))
+fn parse_numbered_param<'a, 'b>() -> impl FnMut(&'a [u8]) -> IParseResult<'_, Expression<'b>> {
+    map_res(parse_u32(), |digit| ok(Expression::NumberedParam(digit)))
 }
 
 fn parse_name<'a, 'b>(bump: &'b BumpInto<'b>) -> impl FnMut(&'a [u8]) -> IParseResult<'a, &'b str> {
@@ -197,7 +196,7 @@ mod tests {
     #[test]
     fn test_built_expr_parsing() {
         #[track_caller]
-        fn test<'b, F>(input: &'b str, builder: F) -> ()
+        fn test<'b, F>(input: &'b str, builder: F)
         where
             F: for<'a> Fn(&'a ExprBuilder<'a>) -> &'a Expression<'a>,
         {
