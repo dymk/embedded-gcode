@@ -28,8 +28,8 @@ where
     Ok(Some(&mut buffer[..bytes_read]))
 }
 
-async fn read_byte<'r, 'b, Read, ReadError>(
-    read: &'r mut Read,
+async fn read_byte<'b, Read, ReadError>(
+    read: &mut Read,
 ) -> Result<Option<u8>, ParseError<'b, ReadError>>
 where
     ReadError: embedded_io_async::Error,

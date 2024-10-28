@@ -38,9 +38,3 @@ where
         ParseError::ReadError(value)
     }
 }
-
-impl<'b, ReadError> ParseError<'b, ReadError> {
-    pub fn from_utf8_error(value: Utf8Error) -> Self {
-        ParseError::Utf8Error(value)
-    }
-}

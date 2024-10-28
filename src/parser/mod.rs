@@ -17,17 +17,12 @@ use nom::{
 };
 use parse_expression::parse_expression;
 
-enum ParseError {
-    InvalidGcode,
-    InvalidMcode,
-}
 type IParseResult<'a, O> = IResult<&'a [u8], O, Error<&'a [u8]>>;
 
 fn ok<'a, T>(t: T) -> Result<T, Error<&'a [u8]>> {
     Ok(t)
 }
 
-#[inline(always)]
 fn parse_comment<'a, 'b>(
     bump: &'b BumpInto<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Command<'b>> {
@@ -109,10 +104,6 @@ fn parse_axis<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, (Axis, f32)> {
         };
         Ok((axis, value))
     })
-}
-
-fn map_axes<'s>(gcode: impl Fn(Axes) -> Command<'s>) -> impl Fn(Axes) -> Result<Command<'s>, ()> {
-    move |axes| Ok(gcode(axes))
 }
 
 fn parse_mcode<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, Mcode> {

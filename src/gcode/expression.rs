@@ -83,16 +83,16 @@ impl<'b> ExprBuilder<'b> {
         }
         .bump(self.bump)
     }
-    pub fn lit(&self, val: f32) -> &'b Expression<'b> {
+    pub fn lit(&'b self, val: f32) -> &'b Expression<'b> {
         Expression::Lit(val).bump(self.bump)
     }
-    pub fn num_param(&self, val: u32) -> &'b Expression<'b> {
+    pub fn num_param(&'b self, val: u32) -> &'b Expression<'b> {
         Expression::NumberedParam(val).bump(self.bump)
     }
-    pub fn local_param(&self, val: &'b str) -> &'b Expression<'b> {
+    pub fn local_param(&'b self, val: &'b str) -> &'b Expression<'b> {
         Expression::NamedLocalParam(val).bump(self.bump)
     }
-    pub fn global_param(&self, val: &'b str) -> &'b Expression<'b> {
+    pub fn global_param(&'b self, val: &'b str) -> &'b Expression<'b> {
         Expression::NamedGlobalParam(val).bump(self.bump)
     }
 }

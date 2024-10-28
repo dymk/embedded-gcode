@@ -123,7 +123,7 @@ fn parse_name<'a, 'b>(bump: &'b BumpInto<'b>) -> impl FnMut(&'a [u8]) -> IParseR
     )
 }
 
-fn parse_binop<'a, 'b>(chars: &'static [BinOp]) -> impl FnMut(&'a [u8]) -> IParseResult<'a, BinOp> {
+fn parse_binop<'a>(chars: &'static [BinOp]) -> impl FnMut(&'a [u8]) -> IParseResult<'a, BinOp> {
     map_res(one_of(BinOpList(chars)), |op| {
         match BinOp::from_value(op as u8) {
             Some(op) => ok(op),
@@ -138,9 +138,10 @@ mod tests {
     use super::{parse_binop, parse_name};
     use crate::{
         gcode::expression::{BinOp, ExprBuilder, Expression},
-        parser::parse_expression::parse_expression,
+        parser::parse_expression::{parse_atom, parse_expression},
     };
     use bump_into::BumpInto;
+    use paste::paste;
 
     #[rstest::rstest]
     #[case(true, "foo")]
@@ -164,14 +165,22 @@ mod tests {
     #[case("#5", Expression::NumberedParam(5))]
     #[case("#<_abc>", Expression::NamedGlobalParam("_abc"))]
     #[case("#<foo>", Expression::NamedLocalParam("foo"))]
-    #[case("[#5]", Expression::NumberedParam(5))]
     #[case("1", Expression::Lit(1.0))]
-    fn test_expr_parsing(#[case] input: &str, #[case] expected: Expression) {
-        use crate::parser::parse_expression::parse_expression;
+    #[case("-1.0", Expression::Lit(-1.0))]
+    fn test_parse_atom(#[case] input: &str, #[case] expected: Expression) {
+        use core::str::from_utf8;
+
+        use nom::error::Error;
 
         let mut heap = bump_into::space_uninit!(1024);
         let bump = BumpInto::from_slice(heap.as_mut());
-        let (_, parsed) = parse_expression(&bump)(input.as_bytes()).unwrap();
+        let parsed = match parse_atom(&bump)(input.as_bytes()) {
+            Ok((_, parsed)) => parsed,
+            Err(nom::Err::Error(Error { input, code })) => {
+                panic!("{:?} {}", code, from_utf8(input).unwrap())
+            }
+            Err(err) => panic!("{:?}", err),
+        };
         assert_eq!(parsed, expected);
     }
 
@@ -179,7 +188,6 @@ mod tests {
     #[case("+", Some(BinOp::Add), &[BinOp::Add, BinOp::Sub])]
     #[case("+", None, &[])]
     #[case("+", None, &[BinOp::Sub])]
-    #[case("-", Some(BinOp::Sub), &[BinOp::Sub])]
     #[case("-", Some(BinOp::Sub), &[BinOp::Sub])]
     fn test_parse_binop(
         #[case] input: &'static str,
@@ -193,50 +201,102 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_built_expr_parsing() {
-        #[track_caller]
-        fn test<'b, F>(input: &'b str, builder: F)
-        where
-            F: for<'a> Fn(&'a ExprBuilder<'a>) -> &'a Expression<'a>,
-        {
-            let mut heap = bump_into::space_uninit!(1024);
-            let bump = BumpInto::from_slice(heap.as_mut());
-            let expr_builder = ExprBuilder::new(&bump);
-            let expected = builder(&expr_builder);
-            let (rest, actual) = parse_expression(&bump)(input.as_bytes()).unwrap();
-            assert_eq!(
-                expected,
-                &actual,
-                "unparsed: {:?}",
-                std::str::from_utf8(rest).unwrap()
-            );
-        }
+    macro_rules! test_expr {
+        ($input:literal, $builder:expr, $test_name:ident) => {
+            paste! {
+                #[test]
+                fn [<test_expr_ $test_name>]() {
+                    test_expr($input, $builder);
+                }
+            }
+        };
+    }
 
-        test("1.0", |b| b.lit(1.0));
-        test("1.0", |b| b.lit(1.0));
-        test("[1.0]", |b| b.lit(1.0));
-        test("[1.0+2.0]", |b| b.binop(b.lit(1.0), '+', b.lit(2.0)));
-        test("#4+2", |b| b.binop(b.num_param(4), '+', b.lit(2.0)));
-        test("#4+[2]", |b| b.binop(b.num_param(4), '+', b.lit(2.0)));
-        test("3-#<foo>", |b| {
-            b.binop(b.lit(3.0), '-', b.local_param("foo"))
-        });
-        test("1*2-3", |b| {
-            b.binop(b.binop(b.lit(1.0), '*', b.lit(2.0)), '-', b.lit(3.0))
-        });
-        test("1*[2-3]", |b| {
-            b.binop(b.lit(1.0), '*', b.binop(b.lit(2.0), '-', b.lit(3.0)))
-        });
-        test("[1*2]-3", |b| {
-            b.binop(b.binop(b.lit(1.0), '*', b.lit(2.0)), '-', b.lit(3.0))
-        });
-        test("[#1*#<foo>]-#<_bar>", |b| {
+    test_expr!("1.0", |b| b.lit(1.0), lit_1);
+
+    test_expr!("[1.0]", |b| b.lit(1.0), lit_parens);
+
+    test_expr!(
+        "[1.0+2.0]",
+        |b| b.binop(b.lit(1.0), '+', b.lit(2.0)),
+        lit_add_parens
+    );
+
+    test_expr!(
+        "#4+2",
+        |b| b.binop(b.num_param(4), '+', b.lit(2.0)),
+        num_add_lit
+    );
+
+    test_expr!(
+        "#4+[2]",
+        |b| b.binop(b.num_param(4), '+', b.lit(2.0)),
+        num_add_lit_parens
+    );
+
+    test_expr!(
+        "3-#<foo>",
+        |b| { b.binop(b.lit(3.0), '-', b.local_param("foo")) },
+        lit_sub_local
+    );
+
+    test_expr!(
+        "1*2-3",
+        |b| { b.binop(b.binop(b.lit(1.0), '*', b.lit(2.0)), '-', b.lit(3.0)) },
+        lit_mul_sub
+    );
+
+    test_expr!(
+        "1*[2-3]",
+        |b| { b.binop(b.lit(1.0), '*', b.binop(b.lit(2.0), '-', b.lit(3.0))) },
+        lit_mul_parens
+    );
+
+    test_expr!(
+        "[1*2]-3",
+        |b| { b.binop(b.binop(b.lit(1.0), '*', b.lit(2.0)), '-', b.lit(3.0)) },
+        parens_lit_sub
+    );
+
+    test_expr!(
+        "[#1*#<foo>]-#<_bar>",
+        |b| {
             b.binop(
                 b.binop(b.num_param(1), '*', b.local_param("foo")),
                 '-',
                 b.global_param("_bar"),
             )
-        });
+        },
+        parens_num_local_sub_global
+    );
+
+    test_expr!(
+        "-1+2",
+        |b| b.binop(b.lit(-1.0), '+', b.lit(2.0)),
+        neg_lit_add
+    );
+
+    test_expr!(
+        "2+-1",
+        |b| b.binop(b.lit(2.0), '+', b.lit(-1.0)),
+        lit_add_neg
+    );
+
+    #[track_caller]
+    fn test_expr<'b, F>(input: &'b str, builder: F)
+    where
+        F: for<'a> Fn(&'a ExprBuilder<'a>) -> &'a Expression<'a>,
+    {
+        let mut heap = bump_into::space_uninit!(1024);
+        let bump = BumpInto::from_slice(heap.as_mut());
+        let expr_builder = ExprBuilder::new(&bump);
+        let expected = builder(&expr_builder);
+        let (rest, actual) = parse_expression(&bump)(input.as_bytes()).unwrap();
+        assert_eq!(
+            expected,
+            &actual,
+            "unparsed: {:?}",
+            std::str::from_utf8(rest).unwrap()
+        );
     }
 }
