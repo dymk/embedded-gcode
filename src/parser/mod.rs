@@ -1,37 +1,31 @@
+mod fold_many0_result;
+mod nom_alloc;
+mod nom_types;
 pub mod parse_command;
 mod parse_expression;
 
 use crate::gcode::{Axes, Axis, Command, Gcode, Mcode, Ocode, OcodeStatement, Scode, Tcode};
-use bump_into::BumpInto;
 use core::str::from_utf8;
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case, take_until1},
     character::complete::{digit1, multispace0, one_of},
     combinator::{fail, map_res, opt},
-    error::Error,
     multi::fold_many1,
     number::complete::float,
     sequence::{delimited, preceded, tuple},
-    IResult,
 };
+use nom_alloc::NomAlloc;
+use nom_types::{ok, IParseResult};
 use parse_expression::parse_expression;
 
-type IParseResult<'a, O> = IResult<&'a [u8], O, Error<&'a [u8]>>;
-
-fn ok<'a, T>(t: T) -> Result<T, Error<&'a [u8]>> {
-    Ok(t)
-}
-
 fn parse_comment<'a, 'b>(
-    bump: &'b BumpInto<'b>,
+    alloc: NomAlloc<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Command<'b>> {
     map_res(
         delimited(tag("("), take_until1(")"), tag(")")),
-        |bytes: &'a [u8]| {
-            let comment_str = bump
-                .alloc_copy_concat_strs(&[from_utf8(bytes).unwrap()])
-                .unwrap();
+        move |bytes| {
+            let comment_str = alloc.alloc_str_from_bytes(bytes)?;
             ok(Command::Comment(comment_str))
         },
     )
@@ -48,9 +42,7 @@ fn parse_gcode<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, Gcode> {
     ))
 }
 
-fn parse_ocode<'a, 'b>(
-    bump: &'b BumpInto<'b>,
-) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Ocode<'b>> {
+fn parse_ocode<'a, 'b>(alloc: NomAlloc<'b>) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Ocode<'b>> {
     map_res(
         tuple((
             parse_u32(),
@@ -61,7 +53,7 @@ fn parse_ocode<'a, 'b>(
                     map_res(tag_no_case("endsub"), |_| ok(OcodeStatement::EndSub)),
                     preceded(
                         tuple((tag_no_case("if"), multispace0)),
-                        map_res(parse_expression(bump), |expr| ok(OcodeStatement::If(expr))),
+                        map_res(parse_expression(alloc), |expr| ok(OcodeStatement::If(expr))),
                     ),
                     map_res(tag_no_case("endif"), |_| ok(OcodeStatement::EndIf)),
                 )),
@@ -112,12 +104,12 @@ fn parse_mcode<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, Mcode> {
 
 #[cfg(test)]
 mod test {
-
     extern crate std;
-    use bump_into::BumpInto;
 
     use super::{parse_axes, parse_command};
     use crate::gcode::{expression::Expression, Axes, Axis, Command, Gcode, Ocode, OcodeStatement};
+    use crate::parser::nom_alloc::NomAlloc;
+    use bump_into::BumpInto;
 
     #[rstest::rstest]
     #[case(b"X1", Axes::new().set(Axis::X, 1.0))]
@@ -141,7 +133,8 @@ mod test {
     fn test_parser(#[case] input: &[u8]) {
         let mut heap = bump_into::space_uninit!(64);
         let bump = BumpInto::from_slice(heap.as_mut());
-        let result = parse_command::parse_command(&bump)(input).unwrap();
+        let alloc = NomAlloc::new(&bump);
+        let result = parse_command::parse_command(alloc)(input).unwrap();
         assert_eq!(
             result.1,
             Command::G(Gcode::G0(Some(Axes::new().set(Axis::X, 1.0))))
@@ -159,7 +152,8 @@ mod test {
     fn test_parse_codes<'a>(#[case] input: &str, #[case] expected_ocode: impl Into<Command<'a>>) {
         let mut heap = bump_into::space_uninit!(64);
         let bump = BumpInto::from_slice(heap.as_mut());
-        let (_, actual_code) = parse_command::parse_command(&bump)(input.as_bytes()).unwrap();
+        let alloc = NomAlloc::new(&bump);
+        let (_, actual_code) = parse_command::parse_command(alloc)(input.as_bytes()).unwrap();
         assert_eq!(actual_code, expected_ocode.into());
     }
 }

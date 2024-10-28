@@ -1,4 +1,4 @@
-use super::IParseResult;
+use super::{nom_alloc::NomAlloc, IParseResult};
 use crate::{
     gcode::Command,
     parser::{ok, parse_comment, parse_gcode, parse_mcode, parse_ocode, parse_scode, parse_tcode},
@@ -10,7 +10,7 @@ use nom::{
 };
 
 pub fn parse_command<'a, 'b>(
-    bump: &'b BumpInto<'b>,
+    alloc: NomAlloc<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Command<'b>> {
     fn parse_command<'a, 'b, SubCommand>(
         // 'G', etc
@@ -29,10 +29,10 @@ pub fn parse_command<'a, 'b>(
     preceded(
         multispace0,
         alt((
-            parse_comment(bump),
+            parse_comment(alloc),
             parse_command('G', Command::G, parse_gcode()),
             parse_command('M', Command::M, parse_mcode()),
-            parse_command('O', Command::O, parse_ocode(bump)),
+            parse_command('O', Command::O, parse_ocode(alloc)),
             parse_command('S', Command::S, parse_scode()),
             parse_command('T', Command::T, parse_tcode()),
         )),

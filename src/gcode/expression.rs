@@ -1,9 +1,7 @@
-use core::fmt::Debug;
-
-use bump_into::BumpInto;
-
 use crate::enum_value_map;
-use crate::enum_value_map::EnumValueMap as _;
+use bump_into::BumpInto;
+use core::fmt::Debug;
+use core::str::from_utf8;
 
 #[derive(PartialEq, Clone)]
 pub enum Expression<'b> {
@@ -16,6 +14,7 @@ pub enum Expression<'b> {
         left: &'b Expression<'b>,
         right: &'b Expression<'b>,
     },
+    FuncCall(FuncCall<'b>),
 }
 
 impl<'b> Debug for Expression<'b> {
@@ -28,37 +27,119 @@ impl<'b> Debug for Expression<'b> {
             Self::BinOpExpr { op, left, right } => f.write_fmt(format_args!(
                 "({:?} {} {:?})",
                 left,
-                op.to_value() as char,
+                from_utf8(op.to_value()).unwrap(),
                 right
             )),
+            Self::FuncCall(func_call) => f.write_fmt(format_args!("{:?}", func_call)),
         }
     }
 }
 
+#[cfg(test)]
 impl<'b> Expression<'b> {
     pub fn bump(self, bump: &'b BumpInto<'b>) -> &'b Self {
         bump.alloc(self).unwrap()
     }
 }
 
-enum_value_map!(enum BinOp: u8 {
-    Add <=> b'+',
-    Sub <=> b'-',
-    Mul <=> b'*',
-    Div <=> b'/',
+enum_value_map!(enum BinOp: &'static [u8] {
+    Pow <=> b"**",
+
+    Mul <=> b"*",
+    Div <=> b"/",
+    Mod <=> b"MOD",
+
+    Add <=> b"+",
+    Sub <=> b"-",
+
+    Eq <=> b"EQ",
+    Ne <=> b"NE",
+    Gt <=> b"GT",
+    Ge <=> b"GE",
+    Lt <=> b"LT",
+    Le <=> b"LE",
+
+    And <=> b"AND",
+    Or <=> b"OR",
+    Xor <=> b"XOR",
 });
 
-impl<'a> nom::FindToken<u8> for BinOpList<'a> {
-    fn find_token(&self, token: u8) -> bool {
-        let op = match BinOp::from_value(token) {
-            Some(op) => op,
-            None => return false,
-        };
-        self.0.contains(&op)
+enum_value_map!(enum UnaryFuncName: &'static [u8] {
+    Abs <=> b"ABS",
+    Acos <=> b"ACOS",
+    Asin <=> b"ASIN",
+    Cos <=> b"COS",
+    Exp <=> b"EXP",
+    Fix <=> b"FIX",
+    Fup <=> b"FUP",
+    Round <=> b"ROUND",
+    Ln <=> b"LN",
+    Sin <=> b"SIN",
+    Sqrt <=> b"SQRT",
+    Tan <=> b"TAN",
+    Exists <=> b"EXISTS",
+});
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum FuncCall<'b> {
+    Atan {
+        arg_y: &'b Expression<'b>,
+        arg_x: &'b Expression<'b>,
+    },
+    Unary {
+        name: UnaryFuncName,
+        arg: &'b Expression<'b>,
+    },
+}
+
+impl<'b> FuncCall<'b> {
+    pub fn atan(arg_y: &'b Expression<'b>, arg_x: &'b Expression<'b>) -> Self {
+        Self::Atan { arg_y, arg_x }
+    }
+    pub fn unary(name: UnaryFuncName, arg: &'b Expression<'b>) -> Self {
+        Self::Unary { name, arg }
     }
 }
 
-pub struct BinOpList<'a>(pub &'a [BinOp]);
+#[derive(Debug)]
+pub struct BinOpArray<const N: usize>([BinOp; N]);
+impl<const N: usize> BinOpArray<N> {
+    pub const fn from_list(list: [BinOp; N]) -> Self {
+        let list = sort_bin_ops(list);
+        Self(list)
+    }
+}
+
+pub trait BinOpList: Debug {
+    fn op_list(&self) -> &[BinOp];
+}
+
+impl<const N: usize> BinOpList for BinOpArray<N> {
+    fn op_list(&self) -> &[BinOp] {
+        &self.0
+    }
+}
+
+pub const fn sort_bin_ops<const N: usize>(mut arr: [BinOp; N]) -> [BinOp; N] {
+    loop {
+        let mut swapped = false;
+        let mut i = 1;
+        while i < arr.len() {
+            if arr[i - 1].to_value().len() < arr[i].to_value().len() {
+                let left = arr[i - 1];
+                let right = arr[i];
+                arr[i - 1] = right;
+                arr[i] = left;
+                swapped = true;
+            }
+            i += 1;
+        }
+        if !swapped {
+            break;
+        }
+    }
+    arr
+}
 
 #[cfg(test)]
 pub struct ExprBuilder<'b> {
@@ -73,11 +154,11 @@ impl<'b> ExprBuilder<'b> {
     pub fn binop(
         &self,
         left: &'b Expression,
-        op: char,
+        op: &'static str,
         right: &'b Expression,
     ) -> &'b Expression<'b> {
         Expression::BinOpExpr {
-            op: BinOp::from_value(op as u8).unwrap(),
+            op: BinOp::from_value(op.as_bytes()).unwrap(),
             left,
             right,
         }
@@ -94,5 +175,11 @@ impl<'b> ExprBuilder<'b> {
     }
     pub fn global_param(&'b self, val: &'b str) -> &'b Expression<'b> {
         Expression::NamedGlobalParam(val).bump(self.bump)
+    }
+    pub fn atan(&'b self, arg_y: &'b Expression, arg_x: &'b Expression) -> &'b Expression<'b> {
+        Expression::FuncCall(FuncCall::atan(arg_y, arg_x)).bump(self.bump)
+    }
+    pub fn unary(&'b self, name: UnaryFuncName, arg: &'b Expression) -> &'b Expression<'b> {
+        Expression::FuncCall(FuncCall::unary(name, arg)).bump(self.bump)
     }
 }
