@@ -1,7 +1,10 @@
-use nom::combinator::fail;
+use nom::{combinator::map_res, number::complete::float};
 
-use crate::{gcode::Scode, parser::nom_types::IParseResult};
+use crate::{
+    gcode::Scode,
+    parser::nom_types::{ok, IParseResult},
+};
 
 pub fn parse_scode<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, Scode> {
-    fail
+    map_res(float, |value| ok(Scode(value)))
 }

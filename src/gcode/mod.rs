@@ -19,7 +19,15 @@ pub enum Gcode {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Mcode {}
+pub enum Mcode {
+    M3,
+    M4,
+    M5,
+    M6(Option<Tcode>),
+    M7,
+    M8,
+    M9,
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Ocode<'b> {
@@ -42,10 +50,10 @@ pub enum OcodeStatement<'b> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Scode {}
+pub struct Scode(pub f32);
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Tcode {}
+pub struct Tcode(pub u32);
 
 pub enum Axis {
     X,
@@ -58,7 +66,7 @@ pub enum Axis {
 
 impl Axis {
     pub fn from_chr(chr: char) -> Option<Self> {
-        match chr {
+        match chr.to_ascii_uppercase() {
             'X' => Some(Axis::X),
             'Y' => Some(Axis::Y),
             'Z' => Some(Axis::Z),

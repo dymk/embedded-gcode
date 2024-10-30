@@ -1,7 +1,7 @@
 use super::{nom_alloc::NomAlloc, IParseResult};
 use crate::{
     gcode::Command,
-    parser::{ok, toplevel::*},
+    parser::{ok, parse_utils::space_before, toplevel::*},
 };
 use nom::{
     branch::alt, bytes::complete::tag_no_case, character::complete::space0, combinator::map_res,
@@ -20,7 +20,10 @@ pub fn parse_command<'a, 'b>(
         command_parser: impl FnMut(&'a [u8]) -> IParseResult<'a, SubCommand>,
     ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Command<'b>> {
         map_res(
-            preceded(tag_no_case([command_char as u8]), command_parser),
+            preceded(
+                space_before(tag_no_case([command_char as u8])),
+                command_parser,
+            ),
             move |parsed| ok(command_ctor(parsed)),
         )
     }

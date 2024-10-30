@@ -3,6 +3,7 @@ extern crate std;
 use crate::{
     gcode::expression::{BinOp, BinOpArray, ExprBuilder, Expression, UnaryFuncName},
     parser::{nom_alloc::NomAlloc, nom_types::GcodeParseError, parse_expression::*},
+    permute_whitespace,
 };
 use bump_into::BumpInto;
 use nom::error::Error;
@@ -84,22 +85,12 @@ fn test_parse_binop<const N: usize>(
 #[case(&["ATAN", "[", "1.0", "]", "/", "[", "2.0", "]"])]
 fn test_handle_whitespace(#[case] tokens: &[&str]) {
     let tokens = [&[""], tokens, &[""]].concat();
-
-    // iterate through all combinations of putting whitespace between tokens
-    for i in 0..(1 << (tokens.len() - 1)) {
-        let mut input = Vec::new();
-        for j in 0..tokens.len() {
-            input.push(tokens[j]);
-            if j < tokens.len() - 1 && (i & (1 << j)) != 0 {
-                input.push(" ");
-            }
-        }
-        let input = input.concat();
+    let inputs = permute_whitespace(&tokens);
+    for input in inputs {
         test_handle_whitespace_impl(&input);
     }
 
     fn test_handle_whitespace_impl(input: &str) {
-        std::println!("testing `{}`", input);
         let mut heap = bump_into::space_uninit!(1024);
         let bump = BumpInto::from_slice(heap.as_mut());
         let alloc = NomAlloc::new(&bump);
