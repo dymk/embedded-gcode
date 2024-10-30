@@ -3,82 +3,23 @@ mod nom_alloc;
 mod nom_types;
 pub mod parse_command;
 mod parse_expression;
+mod parse_utils;
+mod toplevel;
 
-use crate::gcode::{Axes, Axis, Command, Gcode, Mcode, Ocode, OcodeStatement, Scode, Tcode};
-use core::str::from_utf8;
+#[cfg(test)]
+mod parse_expression_tests;
+
+use crate::gcode::{Axes, Axis};
+pub use fold_many0_result::fold_many0_result;
 use nom::{
-    branch::alt,
-    bytes::complete::{tag, tag_no_case, take_until1},
-    character::complete::{digit1, multispace0, one_of},
-    combinator::{fail, map_res, opt},
+    character::complete::{multispace0, one_of},
+    combinator::map_res,
     multi::fold_many1,
     number::complete::float,
-    sequence::{delimited, preceded, tuple},
+    sequence::{preceded, tuple},
 };
-use nom_alloc::NomAlloc;
+pub use nom_types::GcodeParseError;
 use nom_types::{ok, IParseResult};
-use parse_expression::parse_expression;
-
-fn parse_comment<'a, 'b>(
-    alloc: NomAlloc<'b>,
-) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Command<'b>> {
-    map_res(
-        delimited(tag("("), take_until1(")"), tag(")")),
-        move |bytes| {
-            let comment_str = alloc.alloc_str_from_bytes(bytes)?;
-            ok(Command::Comment(comment_str))
-        },
-    )
-}
-
-fn parse_gcode<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, Gcode> {
-    fn make_g<A>(ctor: impl Fn(A) -> Gcode) -> impl Fn(A) -> Result<Gcode, ()> {
-        move |axes| Ok(ctor(axes))
-    }
-
-    alt((
-        map_res(preceded(tag("0"), opt(parse_axes())), make_g(Gcode::G0)),
-        map_res(preceded(tag("1"), parse_axes()), make_g(Gcode::G1)),
-    ))
-}
-
-fn parse_ocode<'a, 'b>(alloc: NomAlloc<'b>) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Ocode<'b>> {
-    map_res(
-        tuple((
-            parse_u32(),
-            preceded(
-                multispace0,
-                alt((
-                    map_res(tag_no_case("sub"), |_| ok(OcodeStatement::Sub)),
-                    map_res(tag_no_case("endsub"), |_| ok(OcodeStatement::EndSub)),
-                    preceded(
-                        tuple((tag_no_case("if"), multispace0)),
-                        map_res(parse_expression(alloc), |expr| ok(OcodeStatement::If(expr))),
-                    ),
-                    map_res(tag_no_case("endif"), |_| ok(OcodeStatement::EndIf)),
-                )),
-            ),
-        )),
-        |(id, stmt)| ok(Ocode::new(id, stmt)),
-    )
-}
-
-fn parse_scode<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, Scode> {
-    fail
-}
-
-fn parse_tcode<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, Tcode> {
-    fail
-}
-
-fn parse_u32<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, u32> {
-    map_res(digit1, |bytes| {
-        str::parse(match from_utf8(bytes) {
-            Ok(s) => s,
-            Err(_) => "invalid",
-        })
-    })
-}
 
 fn parse_axes<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, Axes> {
     fold_many1(
@@ -96,10 +37,6 @@ fn parse_axis<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, (Axis, f32)> {
         };
         Ok((axis, value))
     })
-}
-
-fn parse_mcode<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, Mcode> {
-    fail
 }
 
 #[cfg(test)]

@@ -26,7 +26,7 @@ impl<'b> NomAlloc<'b> {
             .map(|s| &*s)
     }
     pub fn alloc_str_from_bytes<'a>(&self, bytes: &'a [u8]) -> Result<&'b str, AllocError> {
-        let as_str = from_utf8(&bytes).map_err(|_| AllocError::Utf8Error)?;
+        let as_str = from_utf8(bytes).map_err(|_| AllocError::Utf8Error)?;
         self.alloc_str(as_str)
     }
 }

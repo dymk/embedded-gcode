@@ -1,8 +1,5 @@
 use crate::parse_error::ParseError;
 
-#[cfg(test)]
-extern crate std;
-
 pub async fn next_line<'r, 'b, Read, ReadError>(
     read: &'r mut Read,
     buffer: &'b mut [u8],
@@ -14,7 +11,7 @@ where
     let mut bytes_read = 0;
     loop {
         if bytes_read == buffer.len() {
-            return Err(ParseError::LineTooLongForBuffer);
+            return Err(ParseError::LineTooLong);
         }
 
         let byte = match read_byte(read).await? {
@@ -39,7 +36,7 @@ where
     match read.read(&mut byte).await {
         Ok(1) => Ok(Some(byte[0])),
         Ok(0) => Ok(None),
-        Ok(other) => Err(ParseError::InvalidReadSize(other)),
+        Ok(other) => Err(ParseError::ReadSize(other)),
         Err(err) => Err(err.into()),
     }
 }
@@ -49,6 +46,7 @@ mod tests {
     extern crate std;
 
     use super::*;
+    use core::str::from_utf8;
     use futures_lite::future::block_on;
     use std::prelude::v1::*;
 
@@ -61,7 +59,7 @@ mod tests {
             loop {
                 match next_line(&mut bytes, &mut buffer).await {
                     Ok(Some(line)) => {
-                        let line = core::str::from_utf8(line).unwrap();
+                        let line = from_utf8(line).unwrap();
                         lines.push(line.to_owned());
                     }
                     Ok(None) => break,

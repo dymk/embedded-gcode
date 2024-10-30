@@ -1,12 +1,11 @@
 use super::{nom_alloc::NomAlloc, IParseResult};
 use crate::{
     gcode::Command,
-    parser::{ok, parse_comment, parse_gcode, parse_mcode, parse_ocode, parse_scode, parse_tcode},
+    parser::{ok, toplevel::*},
 };
-use bump_into::BumpInto;
 use nom::{
-    branch::alt, bytes::complete::tag_no_case, character::complete::multispace0,
-    combinator::map_res, sequence::preceded,
+    branch::alt, bytes::complete::tag_no_case, character::complete::space0, combinator::map_res,
+    sequence::preceded,
 };
 
 pub fn parse_command<'a, 'b>(
@@ -27,7 +26,7 @@ pub fn parse_command<'a, 'b>(
     }
 
     preceded(
-        multispace0,
+        space0,
         alt((
             parse_comment(alloc),
             parse_command('G', Command::G, parse_gcode()),

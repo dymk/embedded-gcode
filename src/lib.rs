@@ -1,4 +1,5 @@
 #![no_std]
+#![feature(trace_macros)]
 
 mod enum_value_map;
 mod gcode;

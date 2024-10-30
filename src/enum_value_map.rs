@@ -15,7 +15,7 @@ macro_rules! enum_value_map {
                     _ => None,
                 }
             }
-            pub const fn to_value(&self) -> $ty {
+            pub const fn to_value(self) -> $ty {
                 match self {
                     $(Self::$variant => $value,)*
                 }

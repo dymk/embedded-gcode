@@ -1,9 +1,10 @@
-use super::{nom_alloc::NomAlloc, nom_types::err, ok, parse_u32, IParseResult};
 use crate::{
     gcode::expression::{BinOp, BinOpArray, BinOpList, Expression, FuncCall, UnaryFuncName},
-    parser::fold_many0_result::fold_many0_result,
+    parser::{
+        fold_many0_result, nom_alloc::NomAlloc, nom_types::err, ok, parse_utils::parse_u32,
+        IParseResult,
+    },
 };
-use bump_into::BumpInto;
 use core::str::from_utf8;
 use nom::{
     branch::alt,
@@ -11,30 +12,18 @@ use nom::{
     character::complete::{alpha1, alphanumeric1, space0},
     combinator::{map_res, not, peek, recognize},
     error::{Error, ErrorKind},
-    multi::{fold_many0, many0_count},
+    multi::many0_count,
     number::complete::float,
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
 };
 
-#[cfg(test)]
-extern crate std;
-#[cfg(test)]
-macro_rules! println {
-    ($($arg:tt)*) => {
-        std::println!($($arg)*)
-    };
-}
+use super::parse_utils::space_before;
 
-#[cfg(not(test))]
-macro_rules! println {
-    ($($arg:tt)*) => {};
-}
-
-fn parse_atom<'a, 'b>(
+pub fn parse_atom<'a, 'b>(
     bump: NomAlloc<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
     let atom = alt((
-        // function call e.g. `ATAN[..expr..]`
+        // function call e.g. `ATAN[..expr..]/[..expr..]`, `COS[..expr..]`
         parse_func_call(bump),
         // global named parameter e.g. `#<_foo>`
         delimited(
@@ -53,19 +42,6 @@ fn parse_atom<'a, 'b>(
     preceded(space0, atom)
 }
 
-// Parse a (case insensitive) function name e.g. ATAN
-fn parse_func_name<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, UnaryFuncName> {
-    map_res(alpha1, |name| {
-        // do a case insensitive lookup of all the function calls
-        for func in UnaryFuncName::ALL.iter() {
-            if func.to_value().eq_ignore_ascii_case(name) {
-                return ok(func.clone());
-            }
-        }
-        err(Error::new(name, ErrorKind::Fail))
-    })
-}
-
 fn parse_func_call<'a, 'b>(
     alloc: NomAlloc<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
@@ -79,9 +55,9 @@ fn parse_func_call_atan<'a, 'b>(
         preceded(
             tag_no_case("ATAN"),
             separated_pair(
-                delimited(tag("["), parse_expression(alloc), tag("]")),
-                tag("/"),
-                delimited(tag("["), parse_expression(alloc), tag("]")),
+                parse_expr_in_brackets(alloc),
+                space_before(tag("/")),
+                parse_expr_in_brackets(alloc),
             ),
         ),
         move |(arg_y, arg_x)| {
@@ -98,7 +74,7 @@ fn parse_func_call_unary<'a, 'b>(
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
     map_res(
         tuple((
-            parse_func_name(),
+            parse_unary_func_name(),
             delimited(tag("["), parse_expression(alloc), tag("]")),
         )),
         move |(name, arg)| {
@@ -110,12 +86,26 @@ fn parse_func_call_unary<'a, 'b>(
     )
 }
 
+// Parse a (case insensitive) unary function name e.g. `ABS`, `COS`
+fn parse_unary_func_name<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, UnaryFuncName> {
+    // TODO - parse func name using trie
+    map_res(alpha1, |name| {
+        for func in UnaryFuncName::ALL.iter() {
+            if func.to_value().eq_ignore_ascii_case(name) {
+                return ok(*func);
+            }
+        }
+        err(Error::new(name, ErrorKind::Fail))
+    })
+}
+
 fn parse_group<'a, 'b>(
     alloc: NomAlloc<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
-    preceded(
-        space0,
-        delimited(tag("["), parse_expression(alloc), tag("]")),
+    delimited(
+        space_before(tag("[")),
+        parse_expression(alloc),
+        space_before(tag("]")),
     )
 }
 
@@ -191,11 +181,13 @@ fn parse_named_global_param<'a, 'b>(
     })
 }
 
-fn parse_numbered_param<'a, 'b>() -> impl FnMut(&'a [u8]) -> IParseResult<'_, Expression<'b>> {
+fn parse_numbered_param<'a, 'b>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
     map_res(parse_u32(), |digit| ok(Expression::NumberedParam(digit)))
 }
 
-fn parse_name<'a, 'b>(alloc: NomAlloc<'b>) -> impl FnMut(&'a [u8]) -> IParseResult<'a, &'b str> {
+pub fn parse_name<'a, 'b>(
+    alloc: NomAlloc<'b>,
+) -> impl FnMut(&'a [u8]) -> IParseResult<'a, &'b str> {
     map_res(
         recognize(pair(
             alt((alpha1, tag("_"))),
@@ -208,7 +200,7 @@ fn parse_name<'a, 'b>(alloc: NomAlloc<'b>) -> impl FnMut(&'a [u8]) -> IParseResu
     )
 }
 
-impl<'a, 'b, E> nom::branch::Alt<&'a [u8], BinOp, E> for &'b dyn BinOpList
+impl<'a, E> nom::branch::Alt<&'a [u8], BinOp, E> for &dyn BinOpList
 where
     E: nom::error::ParseError<&'a [u8]>,
 {
@@ -227,7 +219,7 @@ where
                 tag(op_value)(input)
             };
             if let Ok::<_, nom::Err<E>>((rest, _)) = result {
-                return Ok((rest, op.clone()));
+                return Ok((rest, *op));
             }
         }
 
@@ -238,225 +230,16 @@ where
     }
 }
 
-fn parse_binop<'a>(ops: &'a dyn BinOpList) -> impl FnMut(&'a [u8]) -> IParseResult<'a, BinOp> {
+pub fn parse_binop<'a>(ops: &'a dyn BinOpList) -> impl FnMut(&'a [u8]) -> IParseResult<'a, BinOp> {
     preceded(space0, alt(ops))
 }
 
-#[cfg(test)]
-mod tests {
-    extern crate std;
-    use core::str::from_utf8;
-
-    use super::{parse_binop, parse_name};
-    use crate::{
-        gcode::expression::{BinOp, BinOpArray, ExprBuilder, Expression},
-        parser::{
-            nom_alloc::NomAlloc,
-            nom_types::GcodeParseError,
-            parse_expression::{parse_atom, parse_expression},
-        },
-    };
-    use bump_into::BumpInto;
-    use paste::paste;
-
-    #[rstest::rstest]
-    #[case(true, "foo")]
-    #[case(true, "_bar")]
-    #[case(true, "baz_")]
-    #[case(false, "0123")]
-    #[case(true, "_abc123")]
-    fn test_parse_name(#[case] success: bool, #[case] name: &str) {
-        let mut heap = bump_into::space_uninit!(1024);
-        let bump = BumpInto::from_slice(heap.as_mut());
-        let alloc = NomAlloc::new(&bump);
-        let result = parse_name(alloc)(name.as_bytes());
-        if success {
-            let (_, parsed) = result.unwrap();
-            assert_eq!(parsed, name);
-        } else {
-            assert!(result.is_err(), "{:?}", result);
-        }
-    }
-
-    #[rstest::rstest]
-    #[case("#5", Expression::NumberedParam(5))]
-    #[case("#<_abc>", Expression::NamedGlobalParam("_abc"))]
-    #[case("#<foo>", Expression::NamedLocalParam("foo"))]
-    #[case("1", Expression::Lit(1.0))]
-    #[case("-1.0", Expression::Lit(-1.0))]
-    fn test_parse_atom(#[case] input: &str, #[case] expected: Expression) {
-        use core::str::from_utf8;
-
-        use nom::error::Error;
-
-        let mut heap = bump_into::space_uninit!(1024);
-        let bump = BumpInto::from_slice(heap.as_mut());
-        let alloc = NomAlloc::new(&bump);
-        let parsed = match parse_atom(alloc)(input.as_bytes()) {
-            Ok((_, parsed)) => parsed,
-            Err(nom::Err::Error(GcodeParseError::NomError(Error { input, code }))) => {
-                panic!("{:?} {}", code, from_utf8(input).unwrap())
-            }
-            Err(err) => panic!("{:?}", err),
-        };
-        assert_eq!(parsed, expected);
-    }
-
-    #[rstest::rstest]
-    #[case("+", Some(BinOp::Add), [BinOp::Add, BinOp::Sub])]
-    #[case(" +", Some(BinOp::Add), [BinOp::Add, BinOp::Sub])]
-    #[case("+", None, [])]
-    #[case("+", None, [BinOp::Sub])]
-    #[case("-", Some(BinOp::Sub), [BinOp::Sub])]
-    #[case("*", Some(BinOp::Mul), [BinOp::Mul])]
-    #[case("* ", Some(BinOp::Mul), [BinOp::Mul])]
-    #[case(" *", Some(BinOp::Mul), [BinOp::Mul])]
-    #[case("**", Some(BinOp::Pow), [BinOp::Mul, BinOp::Pow])]
-    #[case("**", Some(BinOp::Pow), [BinOp::Pow, BinOp::Mul])]
-    #[case("MOD", Some(BinOp::Mod), [BinOp::Mod])]
-    #[case("MOD ", Some(BinOp::Mod), [BinOp::Mod])]
-    #[case(" MOD ", Some(BinOp::Mod), [BinOp::Mod])]
-    #[case("MOD_", None, [BinOp::Mod])]
-    #[case("MODa", None, [BinOp::Mod])]
-    #[case("_MOD", None, [BinOp::Mod])]
-    fn test_parse_binop<const N: usize>(
-        #[case] input: &'static str,
-        #[case] expected: Option<BinOp>,
-        #[case] allowed: [BinOp; N],
-    ) {
-        let list = BinOpArray::from_list(allowed);
-        match (expected, parse_binop(&list)(input.as_bytes())) {
-            (Some(expected), Ok((_, parsed))) => assert_eq!(parsed, expected),
-            (None, Err(_)) => {}
-            (a, b) => panic!("unexpected result: expected={:?} actual={:?}", a, b),
-        };
-    }
-
-    macro_rules! test_expr {
-        ($input:literal, $builder:expr, $test_name:ident) => {
-            paste! {
-                #[test]
-                fn [<test_expr_ $test_name>]() {
-                    test_expr_impl($input, $builder);
-                }
-            }
-        };
-    }
-
-    test_expr!("1.0", |b| b.lit(1.0), lit_1);
-
-    test_expr!(" 1.0", |b| b.lit(1.0), lit_1_spaces);
-
-    test_expr!("[1.0]", |b| b.lit(1.0), lit_parens);
-
-    test_expr!(
-        "[1.0+2.0]",
-        |b| b.binop(b.lit(1.0), "+", b.lit(2.0)),
-        lit_add_parens
-    );
-
-    test_expr!(
-        "#4+2",
-        |b| b.binop(b.num_param(4), "+", b.lit(2.0)),
-        num_add_lit
-    );
-
-    test_expr!(
-        "#4+[2]",
-        |b| b.binop(b.num_param(4), "+", b.lit(2.0)),
-        num_add_lit_parens
-    );
-
-    test_expr!(
-        "3-#<foo>",
-        |b| { b.binop(b.lit(3.0), "-", b.local_param("foo")) },
-        lit_sub_local
-    );
-
-    test_expr!(
-        "1*2-3",
-        |b| { b.binop(b.binop(b.lit(1.0), "*", b.lit(2.0)), "-", b.lit(3.0)) },
-        lit_mul_sub
-    );
-
-    test_expr!(
-        "1*[2-3]",
-        |b| { b.binop(b.lit(1.0), "*", b.binop(b.lit(2.0), "-", b.lit(3.0))) },
-        lit_mul_parens
-    );
-
-    test_expr!(
-        "[1*2]-3",
-        |b| { b.binop(b.binop(b.lit(1.0), "*", b.lit(2.0)), "-", b.lit(3.0)) },
-        parens_lit_sub
-    );
-
-    test_expr!(
-        "[#1*#<foo>]-#<_bar>",
-        |b| {
-            b.binop(
-                b.binop(b.num_param(1), "*", b.local_param("foo")),
-                "-",
-                b.global_param("_bar"),
-            )
-        },
-        parens_num_local_sub_global
-    );
-
-    test_expr!(
-        "-1+2",
-        |b| b.binop(b.lit(-1.0), "+", b.lit(2.0)),
-        neg_lit_add
-    );
-
-    test_expr!(
-        "2+-1",
-        |b| b.binop(b.lit(2.0), "+", b.lit(-1.0)),
-        lit_add_neg
-    );
-
-    test_expr!(
-        "1 MOD 2 / 3",
-        |b| b.binop(b.binop(b.lit(1.0), "MOD", b.lit(2.0)), "/", b.lit(3.0)),
-        lit_mod_div
-    );
-
-    test_expr!("2 ** 3", |b| b.binop(b.lit(2.0), "**", b.lit(3.0)), lit_pow);
-
-    test_expr!(
-        "1 MOD [2 / 3 ** 4]",
-        |b| b.binop(
-            b.lit(1.0),
-            "MOD",
-            b.binop(b.lit(2.0), "/", b.binop(b.lit(3.0), "**", b.lit(4.0)))
-        ),
-        lit_mod_div_parens
-    );
-
-    #[track_caller]
-    fn test_expr_impl<'b, F>(input: &'b str, builder: F)
-    where
-        F: for<'a> Fn(&'a ExprBuilder<'a>) -> &'a Expression<'a>,
-    {
-        let mut heap = bump_into::space_uninit!(1024);
-        let bump = BumpInto::from_slice(heap.as_mut());
-        let alloc = NomAlloc::new(&bump);
-        let expr_builder = ExprBuilder::new(&bump);
-        let expected = builder(&expr_builder);
-        let (rest, actual) = match parse_expression(alloc)(input.as_bytes()) {
-            Ok((rest, actual)) => (rest, actual),
-            Err(nom::Err::Error(GcodeParseError::NomError(err))) => panic!(
-                "{:?}: unparsed: `{}`",
-                err.code,
-                from_utf8(err.input).unwrap()
-            ),
-            Err(err) => panic!("{:?}", err),
-        };
-        assert_eq!(
-            expected,
-            &actual,
-            "unparsed: `{}`",
-            from_utf8(rest).unwrap()
-        );
-    }
+fn parse_expr_in_brackets<'a, 'b>(
+    alloc: NomAlloc<'b>,
+) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
+    delimited(
+        space_before(tag("[")),
+        parse_expression(alloc),
+        space_before(tag("]")),
+    )
 }

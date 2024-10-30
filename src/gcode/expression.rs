@@ -1,4 +1,5 @@
 use crate::enum_value_map;
+#[cfg(test)]
 use bump_into::BumpInto;
 use core::fmt::Debug;
 use core::str::from_utf8;
@@ -17,7 +18,7 @@ pub enum Expression<'b> {
     FuncCall(FuncCall<'b>),
 }
 
-impl<'b> Debug for Expression<'b> {
+impl Debug for Expression<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Lit(arg0) => f.write_fmt(format_args!("{}", arg0)),
