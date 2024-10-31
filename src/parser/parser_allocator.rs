@@ -11,10 +11,6 @@ pub enum AllocError {
 pub struct ParserAllocator<'b>(BumpInto<'b>);
 
 impl<'b> ParserAllocator<'b> {
-    // pub fn new(bump: BumpInto<'b>) -> Self {
-    //     Self(bump)
-    // }
-
     pub fn new(slice: &'b mut [MaybeUninit<u8>]) -> Self {
         Self(BumpInto::from_slice(slice))
     }

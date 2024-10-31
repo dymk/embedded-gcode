@@ -7,6 +7,7 @@ pub struct Position {
     pub column: usize,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum ParseError<'a, ReadError> {
     Gcode(GcodeParseError<'a>),

@@ -1,5 +1,6 @@
 use crate::parse_error::ParseError;
 
+#[allow(dead_code)]
 pub async fn next_line<'r, 'b, Read, ReadError>(
     read: &'r mut Read,
     buffer: &'b mut [u8],
@@ -25,6 +26,7 @@ where
     Ok(Some(&mut buffer[..bytes_read]))
 }
 
+#[allow(dead_code)]
 async fn read_byte<'b, Read, ReadError>(
     read: &mut Read,
 ) -> Result<Option<u8>, ParseError<'b, ReadError>>
