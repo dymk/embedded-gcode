@@ -16,10 +16,13 @@ use std::prelude::v1::*;
 #[case(false, "0123")]
 #[case(true, "_abc123")]
 fn test_parse_name(#[case] success: bool, #[case] name: &str) {
+    use crate::Parser;
+
     let mut heap = bump_into::space_uninit!(1024);
     let bump = BumpInto::from_slice(heap.as_mut());
     let alloc = NomAlloc::new(&bump);
-    let result = parse_name(alloc)(name.as_bytes());
+    let parser = Parser::new(alloc);
+    let result = parser.parse_name()(name.as_bytes());
     if success {
         let (_, parsed) = result.unwrap();
         assert_eq!(parsed, name);
@@ -37,10 +40,13 @@ fn test_parse_name(#[case] success: bool, #[case] name: &str) {
 fn test_parse_atom(#[case] input: &str, #[case] expected: Expression) {
     use core::str::from_utf8;
 
+    use crate::Parser;
+
     let mut heap = bump_into::space_uninit!(1024);
     let bump = BumpInto::from_slice(heap.as_mut());
     let alloc = NomAlloc::new(&bump);
-    let parsed = match parse_atom(alloc)(input.as_bytes()) {
+    let parser = Parser::new(alloc);
+    let parsed = match parser.parse_atom()(input.as_bytes()) {
         Ok((_, parsed)) => parsed,
         Err(nom::Err::Error(GcodeParseError::NomError(Error { input, code }))) => {
             panic!("{:?} {}", code, from_utf8(input).unwrap())
@@ -72,8 +78,15 @@ fn test_parse_binop<const N: usize>(
     #[case] expected: Option<BinOp>,
     #[case] allowed: [BinOp; N],
 ) {
+    use crate::Parser;
+
     let list = BinOpArray::from_list(allowed);
-    match (expected, parse_binop(&list)(input.as_bytes())) {
+
+    let mut heap = bump_into::space_uninit!(1024);
+    let bump = BumpInto::from_slice(heap.as_mut());
+    let alloc = NomAlloc::new(&bump);
+    let parser = Parser::new(alloc);
+    match (expected, parser.parse_binop(&list)(input.as_bytes())) {
         (Some(expected), Ok((_, parsed))) => assert_eq!(parsed, expected),
         (None, Err(_)) => {}
         (a, b) => panic!("unexpected result: expected={:?} actual={:?}", a, b),
