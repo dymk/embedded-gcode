@@ -4,7 +4,7 @@ use crate::{
         nom_types::{ok, IParseResult},
         parse_utils::space_before,
     },
-    NomAlloc,
+    ParserAllocator,
 };
 use nom::{
     bytes::complete::{tag, take_until1},
@@ -13,7 +13,7 @@ use nom::{
 };
 
 pub fn parse_comment<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Command<'b>> {
     map_res(

@@ -2,11 +2,14 @@ use crate::{
     bind,
     gcode::{expression::Expression, Axes, Axis},
     parser::{nom_types::IParseResult, parse_utils::space_before},
-    NomAlloc,
+    ParserAllocator,
 };
 use nom::{character::complete::one_of, combinator::map_res, multi::fold_many1, sequence::pair};
 
-pub fn parse_axes<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<'a, Axes<'b>> {
+pub fn parse_axes<'a, 'b>(
+    alloc: &'b ParserAllocator<'b>,
+    input: &'a [u8],
+) -> IParseResult<'a, Axes<'b>> {
     fold_many1(
         bind!(alloc, parse_axis),
         Axes::default,
@@ -15,7 +18,7 @@ pub fn parse_axes<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<
 }
 
 pub fn parse_axis<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, (Axis, Expression<'b>)> {
     use crate::parser::toplevel::*;

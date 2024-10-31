@@ -3,9 +3,8 @@ extern crate std;
 use crate::{
     gcode::{expression::Expression, Axes, Command, Gcode},
     parser::{parse_axes, test::permute_whitespace, toplevel::*},
-    GcodeParseError, NomAlloc,
+    GcodeParseError, ParserAllocator,
 };
-use bump_into::BumpInto;
 
 use super::ExprBuilder;
 
@@ -47,11 +46,10 @@ where
 {
     for input in permute_whitespace(tokens) {
         let mut heap = bump_into::space_uninit!(1024);
-        let bump = BumpInto::from_slice(heap.as_mut());
-        let alloc = NomAlloc::new(&bump);
-        let expr_builder = ExprBuilder::new(alloc);
+        let alloc = ParserAllocator::new(&mut heap);
+        let expr_builder = ExprBuilder::new(&alloc);
         let expected = node_builder(&expr_builder);
-        let (rest, actual) = match parse_expression(alloc, input.as_bytes()) {
+        let (rest, actual) = match parse_expression(&alloc, input.as_bytes()) {
             Ok((rest, actual)) => (rest, actual),
             Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
                 panic!(
@@ -80,11 +78,10 @@ where
     let mut node_builder: NodeBuilder = node_builder.into();
     for input in permute_whitespace(tokens) {
         let mut heap = bump_into::space_uninit!(1024);
-        let bump = BumpInto::from_slice(heap.as_mut());
-        let alloc = NomAlloc::new(&bump);
-        let expr_builder = ExprBuilder::new(alloc);
+        let alloc = ParserAllocator::new(&mut heap);
+        let expr_builder = ExprBuilder::new(&alloc);
         let expected = node_builder(&expr_builder);
-        let (rest, actual) = match parse_command(alloc, input.as_bytes()) {
+        let (rest, actual) = match parse_command(&alloc, input.as_bytes()) {
             Ok((rest, actual)) => (rest, actual),
             Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
                 panic!(
@@ -112,11 +109,10 @@ where
 {
     for input in permute_whitespace(tokens) {
         let mut heap = bump_into::space_uninit!(1024);
-        let bump = BumpInto::from_slice(heap.as_mut());
-        let alloc = NomAlloc::new(&bump);
-        let expr_builder = ExprBuilder::new(alloc);
+        let alloc = ParserAllocator::new(&mut heap);
+        let expr_builder = ExprBuilder::new(&alloc);
         let expected = node_builder(&expr_builder);
-        let (rest, actual) = match parse_axes(alloc, input.as_bytes()) {
+        let (rest, actual) = match parse_axes(&alloc, input.as_bytes()) {
             Ok((rest, actual)) => (rest, actual),
             Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
                 panic!(

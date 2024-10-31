@@ -1,7 +1,7 @@
 mod fold_many0_result;
-pub mod nom_alloc;
 mod nom_types;
 mod parse_utils;
+pub mod parser_allocator;
 pub mod toplevel;
 
 #[cfg(test)]

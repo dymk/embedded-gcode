@@ -1,5 +1,5 @@
 use crate::parser::toplevel::parse_axes;
-use crate::{bind, gcode::Gcode, parser::nom_types::IParseResult, NomAlloc};
+use crate::{bind, gcode::Gcode, parser::nom_types::IParseResult, ParserAllocator};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -7,7 +7,10 @@ use nom::{
     sequence::preceded,
 };
 
-pub fn parse_gcode<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<'a, Gcode<'b>> {
+pub fn parse_gcode<'a, 'b>(
+    alloc: &'b ParserAllocator<'b>,
+    input: &'a [u8],
+) -> IParseResult<'a, Gcode<'b>> {
     fn make_g<'b, A>(ctor: impl Fn(A) -> Gcode<'b>) -> impl Fn(A) -> Result<Gcode<'b>, ()> {
         move |axes| Ok(ctor(axes))
     }

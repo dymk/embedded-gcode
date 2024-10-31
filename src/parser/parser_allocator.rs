@@ -1,4 +1,4 @@
-use core::str::from_utf8;
+use core::{mem::MaybeUninit, str::from_utf8};
 
 use bump_into::BumpInto;
 
@@ -8,12 +8,15 @@ pub enum AllocError {
     Utf8Error,
 }
 
-#[derive(Clone, Copy)]
-pub struct NomAlloc<'b>(&'b BumpInto<'b>);
+pub struct ParserAllocator<'b>(BumpInto<'b>);
 
-impl<'b> NomAlloc<'b> {
-    pub fn new(bump: &'b BumpInto<'b>) -> Self {
-        Self(bump)
+impl<'b> ParserAllocator<'b> {
+    // pub fn new(bump: BumpInto<'b>) -> Self {
+    //     Self(bump)
+    // }
+
+    pub fn new(slice: &'b mut [MaybeUninit<u8>]) -> Self {
+        Self(BumpInto::from_slice(slice))
     }
 
     pub fn alloc<T>(&self, t: T) -> Result<&'b mut T, AllocError> {

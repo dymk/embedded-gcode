@@ -12,12 +12,15 @@ use crate::{
         nom_types::{ok, IParseResult},
         parse_utils::space_before,
     },
-    NomAlloc,
+    ParserAllocator,
 };
 
 use super::parse_tcode::parse_tcode;
 
-pub fn parse_mcode<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<'a, Mcode> {
+pub fn parse_mcode<'a, 'b>(
+    alloc: &'b ParserAllocator<'b>,
+    input: &'a [u8],
+) -> IParseResult<'a, Mcode> {
     let parse_tcode_prefixed = preceded(space_before(tag_no_case("T")), bind!(alloc, parse_tcode));
 
     let parse_m6 = map_res(

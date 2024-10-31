@@ -1,4 +1,4 @@
-use super::nom_alloc::AllocError;
+use super::parser_allocator::AllocError;
 use core::str::Utf8Error;
 use nom::{
     error::{Error as NomError, ErrorKind as NomErrorKind, FromExternalError},

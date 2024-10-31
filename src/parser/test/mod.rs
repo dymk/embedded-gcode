@@ -3,22 +3,20 @@ mod macro_test_parser;
 mod test_parse_axis;
 mod test_parse_command;
 mod test_parse_expression;
+use crate::{
+    gcode::expression::{BinOp, Expression, FuncCall, UnaryFuncName},
+    ParserAllocator,
+};
 
 extern crate std;
 use std::{collections::HashSet, prelude::v1::*};
 
-use crate::{
-    gcode::expression::{BinOp, Expression, FuncCall, UnaryFuncName},
-    NomAlloc,
-};
-
-#[cfg(test)]
 pub struct ExprBuilder<'b> {
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
 }
-#[cfg(test)]
+
 impl<'b> ExprBuilder<'b> {
-    pub fn new(alloc: NomAlloc<'b>) -> Self {
+    pub fn new(alloc: &'b ParserAllocator<'b>) -> Self {
         Self { alloc }
     }
 

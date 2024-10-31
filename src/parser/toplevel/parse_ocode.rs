@@ -14,10 +14,13 @@ use crate::{
         parse_utils::{parse_u32, space_before},
         toplevel::*,
     },
-    NomAlloc,
+    ParserAllocator,
 };
 
-pub fn parse_ocode<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<'a, Ocode<'b>> {
+pub fn parse_ocode<'a, 'b>(
+    alloc: &'b ParserAllocator<'b>,
+    input: &'a [u8],
+) -> IParseResult<'a, Ocode<'b>> {
     map_res(
         tuple((
             parse_u32(),

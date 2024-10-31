@@ -1,5 +1,5 @@
 use crate::parser::parse_utils::space_before;
-use crate::NomAlloc;
+use crate::ParserAllocator;
 use crate::{
     gcode::expression::{BinOp, BinOpArray, BinOpList, Expression, FuncCall, UnaryFuncName},
     parser::{bind, fold_many0_result, nom_types::err, ok, parse_utils::parse_u32, IParseResult},
@@ -31,14 +31,14 @@ const OPS_L5: BinOpArray<3> = BinOpArray::from_list([BinOp::And, BinOp::Or, BinO
 const PRECEDENCE_LIST: [&dyn BinOpList; 5] = [&OPS_L1, &OPS_L2, &OPS_L3, &OPS_L4, &OPS_L5];
 
 pub fn parse_expression<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
     parse_expression_generic(alloc, input, &PRECEDENCE_LIST)
 }
 
 pub fn parse_atom<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
     let atom = alt((
@@ -62,14 +62,14 @@ pub fn parse_atom<'a, 'b>(
 }
 
 fn parse_func_call<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
     alt((parse_func_call_atan(alloc), parse_func_call_unary(alloc)))(input)
 }
 
 fn parse_func_call_atan<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
     map_res(
         preceded(
@@ -90,7 +90,7 @@ fn parse_func_call_atan<'a, 'b>(
 }
 
 fn parse_func_call_unary<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
     map_res(
         tuple((
@@ -108,7 +108,7 @@ fn parse_func_call_unary<'a, 'b>(
 
 // Parse a (case insensitive) unary function name e.g. `ABS`, `COS`
 fn parse_unary_func_name<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    _: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, UnaryFuncName> {
     // TODO - parse func name using trie
@@ -122,7 +122,10 @@ fn parse_unary_func_name<'a, 'b>(
     })(input)
 }
 
-fn parse_group<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
+fn parse_group<'a, 'b>(
+    alloc: &'b ParserAllocator<'b>,
+    input: &'a [u8],
+) -> IParseResult<'a, Expression<'b>> {
     delimited(
         space_before(tag("[")),
         bind!(alloc, parse_expression),
@@ -130,13 +133,16 @@ fn parse_group<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<'a,
     )(input)
 }
 
-fn parse_factor<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
+fn parse_factor<'a, 'b>(
+    alloc: &'b ParserAllocator<'b>,
+    input: &'a [u8],
+) -> IParseResult<'a, Expression<'b>> {
     let factor = alt((bind!(alloc, parse_atom), bind!(alloc, parse_group)));
     preceded(space0, factor)(input)
 }
 
 fn parse_expression_generic<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
     levels: &'a [&'a dyn BinOpList],
 ) -> IParseResult<'a, Expression<'b>> {
@@ -163,7 +169,7 @@ fn parse_expression_generic<'a, 'b>(
 }
 
 fn parse_named_local_param<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
     map_res(bind!(alloc, parse_name), |name| {
@@ -172,7 +178,7 @@ fn parse_named_local_param<'a, 'b>(
 }
 
 fn parse_named_global_param<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
     map_res(bind!(alloc, parse_name), |name| {
@@ -181,13 +187,16 @@ fn parse_named_global_param<'a, 'b>(
 }
 
 fn parse_numbered_param<'a, 'b>(
-    _: NomAlloc<'b>,
+    _: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
     map_res(parse_u32(), |digit| ok(Expression::NumberedParam(digit)))(input)
 }
 
-pub fn parse_name<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<'a, &'b str> {
+pub fn parse_name<'a, 'b>(
+    alloc: &'b ParserAllocator<'b>,
+    input: &'a [u8],
+) -> IParseResult<'a, &'b str> {
     map_res(
         recognize(pair(
             alt((alpha1, tag("_"))),
@@ -201,7 +210,7 @@ pub fn parse_name<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<
 }
 
 pub fn parse_binop<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    _: &'b ParserAllocator<'b>,
     ops: &'a dyn BinOpList,
     input: &'a [u8],
 ) -> IParseResult<'a, BinOp> {
@@ -209,7 +218,7 @@ pub fn parse_binop<'a, 'b>(
 }
 
 fn parse_expr_in_brackets<'a, 'b>(
-    alloc: NomAlloc<'b>,
+    alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
     delimited(
