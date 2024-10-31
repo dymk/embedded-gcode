@@ -9,6 +9,7 @@ use nom::{
 use crate::{
     gcode::{Ocode, OcodeStatement},
     parser::{
+        bind,
         nom_types::{ok, IParseResult},
         parse_utils::{parse_u32, space_before},
     },
@@ -25,10 +26,9 @@ impl<'b> Parser<'b> {
                     map_res(tag_no_case("endsub"), |_| ok(OcodeStatement::EndSub)),
                     preceded(
                         tuple((tag_no_case("if"), space0)),
-                        map_res(
-                            |i| self.parse_expression(i),
-                            |expr| ok(OcodeStatement::If(expr)),
-                        ),
+                        map_res(bind(self, Self::parse_expression), |expr| {
+                            ok(OcodeStatement::If(expr))
+                        }),
                     ),
                     map_res(tag_no_case("endif"), |_| ok(OcodeStatement::EndIf)),
                 ))),

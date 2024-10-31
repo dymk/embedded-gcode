@@ -7,6 +7,59 @@ mod test_parse_expression;
 extern crate std;
 use std::{collections::HashSet, prelude::v1::*};
 
+use crate::{
+    gcode::expression::{BinOp, Expression, FuncCall, UnaryFuncName},
+    NomAlloc,
+};
+
+#[cfg(test)]
+pub struct ExprBuilder<'b> {
+    alloc: NomAlloc<'b>,
+}
+#[cfg(test)]
+impl<'b> ExprBuilder<'b> {
+    pub fn new(alloc: NomAlloc<'b>) -> Self {
+        Self { alloc }
+    }
+
+    pub fn binop(
+        &'b self,
+        left: &'b Expression,
+        op: &'static str,
+        right: &'b Expression,
+    ) -> &'b Expression<'b> {
+        self.alloc
+            .alloc(Expression::BinOpExpr {
+                op: BinOp::from_value(op.as_bytes()).unwrap(),
+                left,
+                right,
+            })
+            .unwrap()
+    }
+    pub fn lit(&'b self, val: f32) -> &'b Expression<'b> {
+        self.alloc.alloc(Expression::Lit(val)).unwrap()
+    }
+    pub fn num_param(&'b self, val: u32) -> &'b Expression<'b> {
+        self.alloc.alloc(Expression::NumberedParam(val)).unwrap()
+    }
+    pub fn local_param(&'b self, val: &'b str) -> &'b Expression<'b> {
+        self.alloc.alloc(Expression::NamedLocalParam(val)).unwrap()
+    }
+    pub fn global_param(&'b self, val: &'b str) -> &'b Expression<'b> {
+        self.alloc.alloc(Expression::NamedGlobalParam(val)).unwrap()
+    }
+    pub fn atan(&'b self, arg_y: &'b Expression, arg_x: &'b Expression) -> &'b Expression<'b> {
+        self.alloc
+            .alloc(Expression::FuncCall(FuncCall::atan(arg_y, arg_x)))
+            .unwrap()
+    }
+    pub fn unary(&'b self, name: UnaryFuncName, arg: &'b Expression) -> &'b Expression<'b> {
+        self.alloc
+            .alloc(Expression::FuncCall(FuncCall::unary(name, arg)))
+            .unwrap()
+    }
+}
+
 fn permute_whitespace(tokens: &[&str]) -> Vec<String> {
     let tokens = [&[""], tokens, &[""]].concat();
     let mut results = Vec::new();

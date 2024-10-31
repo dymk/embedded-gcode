@@ -1,4 +1,8 @@
-use crate::{gcode::Gcode, parser::nom_types::IParseResult, Parser};
+use crate::{
+    gcode::Gcode,
+    parser::{bind, nom_types::IParseResult},
+    Parser,
+};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -14,10 +18,13 @@ impl<'b> Parser<'b> {
 
         alt((
             map_res(
-                preceded(tag("0"), opt(self.parse_axes())),
+                preceded(tag("0"), opt(bind(self, Self::parse_axes))),
                 make_g(Gcode::G0),
             ),
-            map_res(preceded(tag("1"), self.parse_axes()), make_g(Gcode::G1)),
+            map_res(
+                preceded(tag("1"), bind(self, Self::parse_axes)),
+                make_g(Gcode::G1),
+            ),
         ))(input)
     }
 }

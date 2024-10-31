@@ -1,14 +1,13 @@
 extern crate std;
 
 use crate::{
-    gcode::{
-        expression::{ExprBuilder, Expression},
-        Axes, Command, Gcode,
-    },
+    gcode::{expression::Expression, Axes, Command, Gcode},
     parser::test::permute_whitespace,
     GcodeParseError, NomAlloc, Parser,
 };
 use bump_into::BumpInto;
+
+use super::ExprBuilder;
 
 #[macro_export]
 macro_rules! test_parser {
@@ -120,7 +119,7 @@ where
         let parser = Parser::new(alloc);
         let expr_builder = ExprBuilder::new(alloc);
         let expected = node_builder(&expr_builder);
-        let (rest, actual) = match parser.parse_axes()(input.as_bytes()) {
+        let (rest, actual) = match parser.parse_axes(input.as_bytes()) {
             Ok((rest, actual)) => (rest, actual),
             Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
                 panic!(

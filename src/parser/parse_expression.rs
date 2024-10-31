@@ -2,7 +2,7 @@ use super::parse_utils::space_before;
 use crate::Parser;
 use crate::{
     gcode::expression::{BinOp, BinOpArray, BinOpList, Expression, FuncCall, UnaryFuncName},
-    parser::{fold_many0_result, nom_types::err, ok, parse_utils::parse_u32, IParseResult},
+    parser::{bind, fold_many0_result, nom_types::err, ok, parse_utils::parse_u32, IParseResult},
 };
 use core::str::from_utf8;
 use nom::{
@@ -35,29 +35,33 @@ impl<'b> Parser<'b> {
         self.parse_expression_generic(input, &PRECEDENCE_LIST)
     }
 
-    pub fn parse_atom<'a>(&'b self) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
+    pub fn parse_atom<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
         let atom = alt((
             // function call e.g. `ATAN[..expr..]/[..expr..]`, `COS[..expr..]`
-            self.parse_func_call(),
+            bind(self, Self::parse_func_call),
             // global named parameter e.g. `#<_foo>`
             delimited(
                 tuple((tag("#<"), peek(tag("_")))),
-                self.parse_named_global_param(),
+                bind(self, Self::parse_named_global_param),
                 tag(">"),
             ),
             // local named parameter e.g. `#<foo>`
-            delimited(tag("#<"), self.parse_named_local_param(), tag(">")),
+            delimited(
+                tag("#<"),
+                bind(self, Self::parse_named_local_param),
+                tag(">"),
+            ),
             // numbered parameter e.g. `#5`
-            preceded(tag("#"), self.parse_numbered_param()),
+            preceded(tag("#"), bind(self, Self::parse_numbered_param)),
             // number literal e.g. `1.0`
             map_res(float, |f| ok(Expression::Lit(f))),
         ));
 
-        preceded(space0, atom)
+        preceded(space0, atom)(input)
     }
 
-    fn parse_func_call<'a>(&'b self) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
-        alt((self.parse_func_call_atan(), self.parse_func_call_unary()))
+    fn parse_func_call<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
+        alt((self.parse_func_call_atan(), self.parse_func_call_unary()))(input)
     }
 
     fn parse_func_call_atan<'a>(
@@ -67,9 +71,9 @@ impl<'b> Parser<'b> {
             preceded(
                 tag_no_case("ATAN"),
                 separated_pair(
-                    |input| self.parse_expr_in_brackets(input),
+                    bind(self, Self::parse_expr_in_brackets),
                     space_before(tag("/")),
-                    |input| self.parse_expr_in_brackets(input),
+                    bind(self, Self::parse_expr_in_brackets),
                 ),
             ),
             move |(arg_y, arg_x)| {
@@ -85,9 +89,10 @@ impl<'b> Parser<'b> {
         &'b self,
     ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
         map_res(
-            tuple((self.parse_unary_func_name(), |input| {
-                self.parse_expr_in_brackets(input)
-            })),
+            tuple((
+                bind(self, Self::parse_unary_func_name),
+                bind(self, Self::parse_expr_in_brackets),
+            )),
             move |(name, arg)| {
                 ok(Expression::FuncCall(FuncCall::unary(
                     name,
@@ -98,9 +103,7 @@ impl<'b> Parser<'b> {
     }
 
     // Parse a (case insensitive) unary function name e.g. `ABS`, `COS`
-    fn parse_unary_func_name<'a>(
-        &'b self,
-    ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, UnaryFuncName> {
+    fn parse_unary_func_name<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, UnaryFuncName> {
         // TODO - parse func name using trie
         map_res(alpha1, |name| {
             for func in UnaryFuncName::ALL.iter() {
@@ -109,19 +112,19 @@ impl<'b> Parser<'b> {
                 }
             }
             err(Error::new(name, ErrorKind::Fail))
-        })
+        })(input)
     }
 
-    fn parse_group<'a>(&'b self) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
+    fn parse_group<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
         delimited(
             space_before(tag("[")),
-            |input| self.parse_expression(input),
+            bind(self, Self::parse_expression),
             space_before(tag("]")),
-        )
+        )(input)
     }
 
     fn parse_factor<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
-        let factor = alt((self.parse_atom(), self.parse_group()));
+        let factor = alt((bind(self, Self::parse_atom), bind(self, Self::parse_group)));
         preceded(space0, factor)(input)
     }
 
@@ -131,7 +134,7 @@ impl<'b> Parser<'b> {
         levels: &'a [&'a dyn BinOpList],
     ) -> IParseResult<'a, Expression<'b>> {
         if levels.is_empty() {
-            return self.parse_factor(input);
+            self.parse_factor(input)
         } else {
             let (next_levels, this_level) =
                 (&levels[0..levels.len() - 1], levels[levels.len() - 1]);
@@ -152,29 +155,23 @@ impl<'b> Parser<'b> {
         }
     }
 
-    fn parse_named_local_param<'a>(
-        &'b self,
-    ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
-        map_res(self.parse_name(), |name| {
+    fn parse_named_local_param<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
+        map_res(bind(self, Self::parse_name), |name| {
             ok(Expression::NamedLocalParam(name))
-        })
+        })(input)
     }
 
-    fn parse_named_global_param<'a>(
-        &'b self,
-    ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
-        map_res(self.parse_name(), |name| {
+    fn parse_named_global_param<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
+        map_res(bind(self, Self::parse_name), |name| {
             ok(Expression::NamedGlobalParam(name))
-        })
+        })(input)
     }
 
-    fn parse_numbered_param<'a>(
-        &'b self,
-    ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
-        map_res(parse_u32(), |digit| ok(Expression::NumberedParam(digit)))
+    fn parse_numbered_param<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
+        map_res(parse_u32(), |digit| ok(Expression::NumberedParam(digit)))(input)
     }
 
-    pub fn parse_name<'a>(&'b self) -> impl FnMut(&'a [u8]) -> IParseResult<'a, &'b str> {
+    pub fn parse_name<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, &'b str> {
         map_res(
             recognize(pair(
                 alt((alpha1, tag("_"))),
@@ -184,7 +181,7 @@ impl<'b> Parser<'b> {
                 let name_str = from_utf8(bytes)?;
                 ok(self.alloc.alloc_str(name_str)?)
             },
-        )
+        )(input)
     }
 
     pub fn parse_binop<'a>(
@@ -197,7 +194,7 @@ impl<'b> Parser<'b> {
     fn parse_expr_in_brackets<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Expression<'b>> {
         delimited(
             space_before(tag("[")),
-            |input| self.parse_expression(input),
+            bind(self, Self::parse_expression),
             space_before(tag("]")),
         )(input)
     }

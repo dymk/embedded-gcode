@@ -6,20 +6,21 @@ use nom::{
 };
 
 use crate::{
+    bind,
     gcode::Mcode,
     parser::{
         nom_types::{ok, IParseResult},
         parse_utils::space_before,
-        toplevel::parse_tcode,
     },
     Parser,
 };
 
 impl<'b> Parser<'b> {
     pub fn parse_mcode<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Mcode> {
-        let parse_tcode_prefixed = preceded(space_before(tag_no_case("T")), |input| {
-            self.parse_tcode(input)
-        });
+        let parse_tcode_prefixed = preceded(
+            space_before(tag_no_case("T")),
+            bind(self, Self::parse_tcode),
+        );
 
         let parse_m6 = map_res(
             pair(tag("6"), opt(parse_tcode_prefixed)),

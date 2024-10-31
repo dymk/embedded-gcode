@@ -1,5 +1,6 @@
 use super::IParseResult;
 use crate::{
+    bind,
     gcode::Command,
     parser::{ok, parse_utils::space_before},
     Parser,
@@ -14,7 +15,7 @@ impl<'b> Parser<'b> {
         preceded(
             space0,
             alt((
-                |input| self.parse_comment(input),
+                bind(self, Self::parse_comment),
                 self.parse_prefix('G', Command::G, Self::parse_gcode),
                 self.parse_prefix('M', Command::M, Self::parse_mcode),
                 self.parse_prefix('O', Command::O, Self::parse_ocode),
@@ -31,12 +32,12 @@ impl<'b> Parser<'b> {
         // Map the parsed sub-command into a Command e.g. Gcode into Command::G(Gcode)
         command_ctor: impl Fn(SubCommand) -> Command<'b>,
         // The parser for the sub-command, results in a Gcode, Mcode, etc
-        mut command_parser: impl FnMut(&'b Parser<'b>, &'a [u8]) -> IParseResult<'a, SubCommand>,
+        command_parser: fn(&'b Parser<'b>, &'a [u8]) -> IParseResult<'a, SubCommand>,
     ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Command<'b>> {
         map_res(
             preceded(
                 space_before(tag_no_case([command_char as u8])),
-                move |input| command_parser(self, input),
+                bind(self, command_parser),
             ),
             move |parsed| ok(command_ctor(parsed)),
         )

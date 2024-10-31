@@ -10,6 +10,7 @@ mod toplevel;
 mod test;
 
 use crate::{
+    bind,
     gcode::{expression::Expression, Axes, Axis},
     NomAlloc,
 };
@@ -28,19 +29,19 @@ impl<'b> Parser<'b> {
         Self { alloc }
     }
 
-    fn parse_axes<'a>(&'b self) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Axes<'b>> {
-        fold_many1(self.parse_axis(), Axes::default, |axes, (axis, value)| {
-            axes.set(axis, value)
-        })
+    fn parse_axes<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Axes<'b>> {
+        fold_many1(
+            bind(self, Self::parse_axis),
+            Axes::default,
+            |axes, (axis, value)| axes.set(axis, value),
+        )(input)
     }
 
-    fn parse_axis<'a>(
-        &'b self,
-    ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, (Axis, Expression<'b>)> {
+    fn parse_axis<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, (Axis, Expression<'b>)> {
         map_res(
             pair(
                 space_before(one_of("XYZABCxyzabc")),
-                space_before(|i| self.parse_expression(i)),
+                space_before(bind(self, Self::parse_expression)),
             ),
             |(chr, value)| {
                 let axis = match Axis::from_chr(chr) {
@@ -49,6 +50,6 @@ impl<'b> Parser<'b> {
                 };
                 Ok((axis, value))
             },
-        )
+        )(input)
     }
 }

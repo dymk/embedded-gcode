@@ -1,11 +1,13 @@
 extern crate std;
 
+use crate::Parser;
 use crate::{
     gcode::expression::{BinOp, BinOpArray, Expression, UnaryFuncName},
-    parser::{nom_alloc::NomAlloc, nom_types::GcodeParseError, parse_expression::*},
+    parser::{nom_alloc::NomAlloc, nom_types::GcodeParseError},
     test_parser,
 };
 use bump_into::BumpInto;
+use core::str::from_utf8;
 use nom::error::Error;
 use std::prelude::v1::*;
 
@@ -16,13 +18,11 @@ use std::prelude::v1::*;
 #[case(false, "0123")]
 #[case(true, "_abc123")]
 fn test_parse_name(#[case] success: bool, #[case] name: &str) {
-    use crate::Parser;
-
     let mut heap = bump_into::space_uninit!(1024);
     let bump = BumpInto::from_slice(heap.as_mut());
     let alloc = NomAlloc::new(&bump);
     let parser = Parser::new(alloc);
-    let result = parser.parse_name()(name.as_bytes());
+    let result = parser.parse_name(name.as_bytes());
     if success {
         let (_, parsed) = result.unwrap();
         assert_eq!(parsed, name);
@@ -38,15 +38,11 @@ fn test_parse_name(#[case] success: bool, #[case] name: &str) {
 #[case("1", Expression::Lit(1.0))]
 #[case("-1.0", Expression::Lit(-1.0))]
 fn test_parse_atom(#[case] input: &str, #[case] expected: Expression) {
-    use core::str::from_utf8;
-
-    use crate::Parser;
-
     let mut heap = bump_into::space_uninit!(1024);
     let bump = BumpInto::from_slice(heap.as_mut());
     let alloc = NomAlloc::new(&bump);
     let parser = Parser::new(alloc);
-    let parsed = match parser.parse_atom()(input.as_bytes()) {
+    let parsed = match parser.parse_atom(input.as_bytes()) {
         Ok((_, parsed)) => parsed,
         Err(nom::Err::Error(GcodeParseError::NomError(Error { input, code }))) => {
             panic!("{:?} {}", code, from_utf8(input).unwrap())
@@ -78,10 +74,7 @@ fn test_parse_binop<const N: usize>(
     #[case] expected: Option<BinOp>,
     #[case] allowed: [BinOp; N],
 ) {
-    use crate::Parser;
-
     let list = BinOpArray::from_list(allowed);
-
     let mut heap = bump_into::space_uninit!(1024);
     let bump = BumpInto::from_slice(heap.as_mut());
     let alloc = NomAlloc::new(&bump);
