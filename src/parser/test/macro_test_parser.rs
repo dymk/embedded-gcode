@@ -2,8 +2,8 @@ extern crate std;
 
 use crate::{
     gcode::{expression::Expression, Axes, Command, Gcode},
-    parser::test::permute_whitespace,
-    GcodeParseError, NomAlloc, Parser,
+    parser::{parse_axes, test::permute_whitespace, toplevel::*},
+    GcodeParseError, NomAlloc,
 };
 use bump_into::BumpInto;
 
@@ -51,8 +51,7 @@ where
         let alloc = NomAlloc::new(&bump);
         let expr_builder = ExprBuilder::new(alloc);
         let expected = node_builder(&expr_builder);
-        let parser = Parser::new(alloc);
-        let (rest, actual) = match parser.parse_expression(input.as_bytes()) {
+        let (rest, actual) = match parse_expression(alloc, input.as_bytes()) {
             Ok((rest, actual)) => (rest, actual),
             Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
                 panic!(
@@ -85,8 +84,7 @@ where
         let alloc = NomAlloc::new(&bump);
         let expr_builder = ExprBuilder::new(alloc);
         let expected = node_builder(&expr_builder);
-        let parser = Parser::new(alloc);
-        let (rest, actual) = match parser.parse_command(input.as_bytes()) {
+        let (rest, actual) = match parse_command(alloc, input.as_bytes()) {
             Ok((rest, actual)) => (rest, actual),
             Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
                 panic!(
@@ -116,10 +114,9 @@ where
         let mut heap = bump_into::space_uninit!(1024);
         let bump = BumpInto::from_slice(heap.as_mut());
         let alloc = NomAlloc::new(&bump);
-        let parser = Parser::new(alloc);
         let expr_builder = ExprBuilder::new(alloc);
         let expected = node_builder(&expr_builder);
-        let (rest, actual) = match parser.parse_axes(input.as_bytes()) {
+        let (rest, actual) = match parse_axes(alloc, input.as_bytes()) {
             Ok((rest, actual)) => (rest, actual),
             Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
                 panic!(

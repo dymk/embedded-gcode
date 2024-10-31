@@ -45,7 +45,7 @@ where
 mod tests {
     extern crate std;
 
-    use super::*;
+    use crate::line_reader::next_line;
     use core::str::from_utf8;
     use futures_lite::future::block_on;
     use std::prelude::v1::*;

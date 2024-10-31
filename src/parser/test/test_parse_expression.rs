@@ -1,9 +1,12 @@
 extern crate std;
 
-use crate::Parser;
+use crate::parser::{
+    nom_alloc::NomAlloc,
+    nom_types::GcodeParseError,
+    toplevel::{parse_atom, parse_binop, parse_name},
+};
 use crate::{
     gcode::expression::{BinOp, BinOpArray, Expression, UnaryFuncName},
-    parser::{nom_alloc::NomAlloc, nom_types::GcodeParseError},
     test_parser,
 };
 use bump_into::BumpInto;
@@ -21,8 +24,7 @@ fn test_parse_name(#[case] success: bool, #[case] name: &str) {
     let mut heap = bump_into::space_uninit!(1024);
     let bump = BumpInto::from_slice(heap.as_mut());
     let alloc = NomAlloc::new(&bump);
-    let parser = Parser::new(alloc);
-    let result = parser.parse_name(name.as_bytes());
+    let result = parse_name(alloc, name.as_bytes());
     if success {
         let (_, parsed) = result.unwrap();
         assert_eq!(parsed, name);
@@ -41,8 +43,7 @@ fn test_parse_atom(#[case] input: &str, #[case] expected: Expression) {
     let mut heap = bump_into::space_uninit!(1024);
     let bump = BumpInto::from_slice(heap.as_mut());
     let alloc = NomAlloc::new(&bump);
-    let parser = Parser::new(alloc);
-    let parsed = match parser.parse_atom(input.as_bytes()) {
+    let parsed = match parse_atom(alloc, input.as_bytes()) {
         Ok((_, parsed)) => parsed,
         Err(nom::Err::Error(GcodeParseError::NomError(Error { input, code }))) => {
             panic!("{:?} {}", code, from_utf8(input).unwrap())
@@ -78,8 +79,7 @@ fn test_parse_binop<const N: usize>(
     let mut heap = bump_into::space_uninit!(1024);
     let bump = BumpInto::from_slice(heap.as_mut());
     let alloc = NomAlloc::new(&bump);
-    let parser = Parser::new(alloc);
-    match (expected, parser.parse_binop(&list)(input.as_bytes())) {
+    match (expected, parse_binop(alloc, &list, input.as_bytes())) {
         (Some(expected), Ok((_, parsed))) => assert_eq!(parsed, expected),
         (None, Err(_)) => {}
         (a, b) => panic!("unexpected result: expected={:?} actual={:?}", a, b),

@@ -12,28 +12,27 @@ use crate::{
         bind,
         nom_types::{ok, IParseResult},
         parse_utils::{parse_u32, space_before},
+        toplevel::*,
     },
-    Parser,
+    NomAlloc,
 };
 
-impl<'b> Parser<'b> {
-    pub fn parse_ocode<'a>(&'b self, input: &'a [u8]) -> IParseResult<'a, Ocode<'b>> {
-        map_res(
-            tuple((
-                parse_u32(),
-                space_before(alt((
-                    map_res(tag_no_case("sub"), |_| ok(OcodeStatement::Sub)),
-                    map_res(tag_no_case("endsub"), |_| ok(OcodeStatement::EndSub)),
-                    preceded(
-                        tuple((tag_no_case("if"), space0)),
-                        map_res(bind(self, Self::parse_expression), |expr| {
-                            ok(OcodeStatement::If(expr))
-                        }),
-                    ),
-                    map_res(tag_no_case("endif"), |_| ok(OcodeStatement::EndIf)),
-                ))),
-            )),
-            |(id, stmt)| ok(Ocode::new(id, stmt)),
-        )(input)
-    }
+pub fn parse_ocode<'a, 'b>(alloc: NomAlloc<'b>, input: &'a [u8]) -> IParseResult<'a, Ocode<'b>> {
+    map_res(
+        tuple((
+            parse_u32(),
+            space_before(alt((
+                map_res(tag_no_case("sub"), |_| ok(OcodeStatement::Sub)),
+                map_res(tag_no_case("endsub"), |_| ok(OcodeStatement::EndSub)),
+                preceded(
+                    tuple((tag_no_case("if"), space0)),
+                    map_res(bind!(alloc, parse_expression), |expr| {
+                        ok(OcodeStatement::If(expr))
+                    }),
+                ),
+                map_res(tag_no_case("endif"), |_| ok(OcodeStatement::EndIf)),
+            ))),
+        )),
+        |(id, stmt)| ok(Ocode::new(id, stmt)),
+    )(input)
 }

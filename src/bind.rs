@@ -8,9 +8,21 @@
 /// # Returns
 ///
 /// A closure that takes a reference to a parameter and returns the output of the bound method.
+
+#[macro_export]
+macro_rules! bind {
+    ($target:expr, $method:expr) => {
+        move |input| $method($target, input)
+    };
+}
+
+// function version, requires rust nightly
+// https://github.com/rust-lang/rust/issues/123432
+/*
 pub fn bind<'p, 't, Target, Param: ?Sized, Out>(
     target: &'t Target,
     method: fn(&'t Target, &'p Param) -> Out,
 ) -> impl FnMut(&'p Param) -> Out + use<'p, 't, Target, Param, Out> {
     move |input| method(target, input)
 }
+*/
