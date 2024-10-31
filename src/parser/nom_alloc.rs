@@ -2,6 +2,7 @@ use core::str::from_utf8;
 
 use bump_into::BumpInto;
 
+#[derive(Debug)]
 pub enum AllocError {
     OutOfMemory,
     Utf8Error,

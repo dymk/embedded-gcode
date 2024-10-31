@@ -1,7 +1,13 @@
+#[macro_use]
+mod macro_test_parser;
+mod test_parse_axis;
+mod test_parse_command;
+mod test_parse_expression;
+
 extern crate std;
 use std::{collections::HashSet, prelude::v1::*};
 
-pub fn permute_whitespace(tokens: &[&str]) -> Vec<String> {
+fn permute_whitespace(tokens: &[&str]) -> Vec<String> {
     let tokens = [&[""], tokens, &[""]].concat();
     let mut results = Vec::new();
 

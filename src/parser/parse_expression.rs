@@ -73,10 +73,7 @@ fn parse_func_call_unary<'a, 'b>(
     alloc: NomAlloc<'b>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Expression<'b>> {
     map_res(
-        tuple((
-            parse_unary_func_name(),
-            delimited(tag("["), parse_expression(alloc), tag("]")),
-        )),
+        tuple((parse_unary_func_name(), parse_expr_in_brackets(alloc))),
         move |(name, arg)| {
             ok(Expression::FuncCall(FuncCall::unary(
                 name,

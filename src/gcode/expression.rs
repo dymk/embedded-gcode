@@ -1,4 +1,4 @@
-use crate::enum_value_map;
+use crate::{enum_value_map, NomAlloc};
 #[cfg(test)]
 use bump_into::BumpInto;
 use core::fmt::Debug;
@@ -144,43 +144,48 @@ pub const fn sort_bin_ops<const N: usize>(mut arr: [BinOp; N]) -> [BinOp; N] {
 
 #[cfg(test)]
 pub struct ExprBuilder<'b> {
-    bump: &'b BumpInto<'b>,
+    alloc: NomAlloc<'b>,
 }
 #[cfg(test)]
 impl<'b> ExprBuilder<'b> {
-    pub fn new(bump: &'b BumpInto<'b>) -> Self {
-        Self { bump }
+    pub fn new(alloc: NomAlloc<'b>) -> Self {
+        Self { alloc }
     }
 
     pub fn binop(
-        &self,
+        &'b self,
         left: &'b Expression,
         op: &'static str,
         right: &'b Expression,
     ) -> &'b Expression<'b> {
-        Expression::BinOpExpr {
-            op: BinOp::from_value(op.as_bytes()).unwrap(),
-            left,
-            right,
-        }
-        .bump(self.bump)
+        self.alloc
+            .alloc(Expression::BinOpExpr {
+                op: BinOp::from_value(op.as_bytes()).unwrap(),
+                left,
+                right,
+            })
+            .unwrap()
     }
     pub fn lit(&'b self, val: f32) -> &'b Expression<'b> {
-        Expression::Lit(val).bump(self.bump)
+        self.alloc.alloc(Expression::Lit(val)).unwrap()
     }
     pub fn num_param(&'b self, val: u32) -> &'b Expression<'b> {
-        Expression::NumberedParam(val).bump(self.bump)
+        self.alloc.alloc(Expression::NumberedParam(val)).unwrap()
     }
     pub fn local_param(&'b self, val: &'b str) -> &'b Expression<'b> {
-        Expression::NamedLocalParam(val).bump(self.bump)
+        self.alloc.alloc(Expression::NamedLocalParam(val)).unwrap()
     }
     pub fn global_param(&'b self, val: &'b str) -> &'b Expression<'b> {
-        Expression::NamedGlobalParam(val).bump(self.bump)
+        self.alloc.alloc(Expression::NamedGlobalParam(val)).unwrap()
     }
     pub fn atan(&'b self, arg_y: &'b Expression, arg_x: &'b Expression) -> &'b Expression<'b> {
-        Expression::FuncCall(FuncCall::atan(arg_y, arg_x)).bump(self.bump)
+        self.alloc
+            .alloc(Expression::FuncCall(FuncCall::atan(arg_y, arg_x)))
+            .unwrap()
     }
     pub fn unary(&'b self, name: UnaryFuncName, arg: &'b Expression) -> &'b Expression<'b> {
-        Expression::FuncCall(FuncCall::unary(name, arg)).bump(self.bump)
+        self.alloc
+            .alloc(Expression::FuncCall(FuncCall::unary(name, arg)))
+            .unwrap()
     }
 }

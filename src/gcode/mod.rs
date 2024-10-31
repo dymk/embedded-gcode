@@ -1,11 +1,10 @@
-use expression::Expression;
-
 pub mod expression;
+use expression::Expression;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Command<'b> {
     Comment(&'b str),
-    G(Gcode),
+    G(Gcode<'b>),
     M(Mcode),
     O(Ocode<'b>),
     S(Scode),
@@ -13,9 +12,9 @@ pub enum Command<'b> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Gcode {
-    G0(Option<Axes>),
-    G1(Axes),
+pub enum Gcode<'b> {
+    G0(Option<Axes<'b>>),
+    G1(Axes<'b>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -55,6 +54,10 @@ pub struct Scode(pub f32);
 #[derive(Debug, PartialEq, Clone)]
 pub struct Tcode(pub u32);
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct Fcode(pub f32);
+
+#[derive(Debug)]
 pub enum Axis {
     X,
     Y,
@@ -89,15 +92,15 @@ impl Axis {
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
-pub struct Axes([Option<f32>; 6]);
-impl Axes {
+pub struct Axes<'b>([Option<Expression<'b>>; 6]);
+impl<'b> Axes<'b> {
     pub fn new() -> Self {
-        Self([None; 6])
+        Self([const { None }; 6])
     }
-    pub fn get(&self, axis: Axis) -> Option<f32> {
-        self.0[axis.to_idx()]
+    pub fn get(&'b self, axis: Axis) -> Option<&'b Expression<'b>> {
+        self.0[axis.to_idx()].as_ref()
     }
-    pub fn set(mut self, axis: Axis, value: f32) -> Self {
+    pub fn set(mut self, axis: Axis, value: Expression<'b>) -> Self {
         self.0[axis.to_idx()] = Some(value);
         self
     }
@@ -118,10 +121,16 @@ macro_rules! from_impl {
     };
 }
 
-from_impl!(G Gcode, M Mcode, S Scode, T Tcode);
+from_impl!(M Mcode, S Scode, T Tcode);
 
 impl<'b> From<Ocode<'b>> for Command<'b> {
     fn from(t: Ocode<'b>) -> Self {
         Command::O(t)
+    }
+}
+
+impl<'b> From<Gcode<'b>> for Command<'b> {
+    fn from(t: Gcode<'b>) -> Self {
+        Command::G(t)
     }
 }
