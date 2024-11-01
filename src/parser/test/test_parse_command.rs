@@ -3,10 +3,34 @@ extern crate std;
 use crate::gcode::*;
 
 test_parser!(command, g0, ["G0"], |_| Gcode::G0(None).into());
+
 test_parser!(command, g0_x1, ["G0", "X1"], |b| Gcode::G0(Some(
     Axes::new().set(Axis::X, b.lit(1.0).clone())
 ))
 .into());
+
+test_parser!(command, g0_x_expr_lit, ["G0", "X", "[", "1", "]"], |b| {
+    Gcode::G0(Some(Axes::new().set(Axis::X, b.lit(1.0).clone()))).into()
+});
+
+test_parser!(
+    command,
+    g0_x_expr_binop,
+    ["G0", "X", "[", "1", "+", "2", "]"],
+    |b| {
+        Gcode::G0(Some(
+            Axes::new().set(Axis::X, b.binop(b.lit(1.0), "+", b.lit(2.0)).clone()),
+        ))
+        .into()
+    }
+);
+
+test_parser!(command, g20, ["G20"], |_| Gcode::G20.into());
+test_parser!(command, g21, ["G21"], |_| Gcode::G21.into());
+test_parser!(command, g53, ["G53"], |_| Gcode::G53.into());
+test_parser!(command, g54, ["G54"], |_| Gcode::G54.into());
+test_parser!(command, g90, ["G90"], |_| Gcode::G90.into());
+test_parser!(command, g91, ["G91"], |_| Gcode::G91.into());
 
 test_parser!(command, o100_if, ["O100", "if", "1"], |b| Ocode::new(
     100,

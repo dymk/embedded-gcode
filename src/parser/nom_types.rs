@@ -5,7 +5,7 @@ use nom::{
     IResult as NomIResult,
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum GcodeParseError<'a> {
     NomError(NomError<&'a [u8]>),
     OutOfMemory,

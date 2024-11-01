@@ -13,7 +13,7 @@ pub fn parse_axes<'a, 'b>(
     fold_many1(
         bind!(alloc, parse_axis),
         Axes::default,
-        |axes, (axis, value)| axes.set(axis, value),
+        |axes, (axis, expr)| axes.set(axis, expr),
     )(input)
 }
 
@@ -28,12 +28,12 @@ pub fn parse_axis<'a, 'b>(
             space_before(one_of("XYZABCxyzabc")),
             space_before(bind!(alloc, parse_expression)),
         ),
-        |(chr, value)| {
+        |(chr, expr)| {
             let axis = match Axis::from_chr(chr) {
                 Some(axis) => axis,
                 None => return Err(()),
             };
-            Ok((axis, value))
+            Ok((axis, expr))
         },
     )(input)
 }

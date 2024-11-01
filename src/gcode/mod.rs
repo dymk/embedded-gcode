@@ -15,6 +15,21 @@ pub enum Command<'b> {
 pub enum Gcode<'b> {
     G0(Option<Axes<'b>>),
     G1(Axes<'b>),
+    /// inch units
+    G20,
+    /// mm units
+    G21,
+    /// machine coordinates
+    G53,
+    /// coordinate system 1
+    G54,
+    /// coordinate system 2
+    G55,
+    /* todo - G56 -> G59.3 */
+    /// absolute positioning
+    G90,
+    /// relative positioning
+    G91,
 }
 
 #[derive(Debug, PartialEq, Clone)]

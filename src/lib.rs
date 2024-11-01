@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 mod bind;
 mod enum_value_map;
 mod gcode;

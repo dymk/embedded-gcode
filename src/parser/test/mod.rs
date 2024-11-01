@@ -1,8 +1,10 @@
 #[macro_use]
 mod macro_test_parser;
+mod test_number_code;
 mod test_parse_axis;
 mod test_parse_command;
 mod test_parse_expression;
+
 use crate::{
     gcode::expression::{BinOp, Expression, FuncCall, UnaryFuncName},
     ParserAllocator,
