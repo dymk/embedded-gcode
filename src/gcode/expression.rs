@@ -7,9 +7,7 @@ use core::str::from_utf8;
 #[derive(PartialEq, Clone)]
 pub enum Expression<'b> {
     Lit(f32),
-    NumberedParam(u32),
-    NamedLocalParam(&'b str),
-    NamedGlobalParam(&'b str),
+    Param(Param<'b>),
     BinOpExpr {
         op: BinOp,
         left: &'b Expression<'b>,
@@ -18,13 +16,31 @@ pub enum Expression<'b> {
     FuncCall(FuncCall<'b>),
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum Param<'b> {
+    Numbered(NumberedParam),
+    NamedLocal(NamedLocalParam<'b>),
+    NamedGlobal(NamedGlobalParam<'b>),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct NumberedParam(pub u32);
+#[derive(Debug, PartialEq, Clone)]
+pub struct NamedLocalParam<'b>(pub &'b str);
+#[derive(Debug, PartialEq, Clone)]
+pub struct NamedGlobalParam<'b>(pub &'b str);
+
 impl Debug for Expression<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Lit(arg0) => f.write_fmt(format_args!("{}", arg0)),
-            Self::NumberedParam(arg0) => f.write_fmt(format_args!("#{}", arg0)),
-            Self::NamedLocalParam(arg0) => f.write_fmt(format_args!("#<{}>", arg0)),
-            Self::NamedGlobalParam(arg0) => f.write_fmt(format_args!("#<{}>", arg0)),
+            Self::Param(param) => match param {
+                Param::Numbered(numbered) => f.write_fmt(format_args!("#{}", numbered.0)),
+                Param::NamedLocal(named_local) => f.write_fmt(format_args!("#<{}>", named_local.0)),
+                Param::NamedGlobal(named_global) => {
+                    f.write_fmt(format_args!("#<{}>", named_global.0))
+                }
+            },
             Self::BinOpExpr { op, left, right } => f.write_fmt(format_args!(
                 "({:?} {} {:?})",
                 left,

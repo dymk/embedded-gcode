@@ -1,14 +1,10 @@
-use nom::combinator::map_res;
-
 use crate::{
     gcode::Tcode,
-    parser::{
-        nom_types::{ok, IParseResult},
-        parse_utils::parse_u32,
-    },
+    parser::{map_res_f1, nom_types::IParseResult, parse_utils::parse_u32},
     ParserAllocator,
 };
+use nom::Parser;
 
 pub fn parse_tcode<'a, 'b>(_: &'b ParserAllocator<'b>, input: &'a [u8]) -> IParseResult<'a, Tcode> {
-    map_res(parse_u32(), |val| ok(Tcode(val)))(input)
+    map_res_f1(parse_u32(), Tcode).parse(input)
 }

@@ -1,14 +1,13 @@
 use crate::{
     bind,
     gcode::Command,
-    parser::{
-        nom_types::IParseResult, ok, parse_comment, parse_gcode, parse_mcode, parse_ocode,
-        parse_scode, parse_tcode, parse_utils::space_before,
-    },
+    parser::{nom_types::IParseResult, ok, parse_utils::space_before, toplevel::*},
     ParserAllocator,
 };
 use nom::{
-    branch::alt, bytes::complete::tag_no_case, character::complete::space0, combinator::map_res,
+    branch::alt,
+    bytes::complete::{tag, tag_no_case},
+    combinator::{map_res, peek},
     sequence::preceded,
 };
 
@@ -16,17 +15,17 @@ pub fn parse_command<'a, 'b>(
     alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Command<'b>> {
-    preceded(
-        space0,
-        alt((
-            bind!(alloc, parse_comment),
-            parse_prefix(alloc, 'G', Command::G, parse_gcode),
-            parse_prefix(alloc, 'M', Command::M, parse_mcode),
-            parse_prefix(alloc, 'O', Command::O, parse_ocode),
-            parse_prefix(alloc, 'S', Command::S, parse_scode),
-            parse_prefix(alloc, 'T', Command::T, parse_tcode),
-        )),
-    )(input)
+    let assignment = preceded(space_before(peek(tag("#"))), bind!(alloc, parse_assignment));
+
+    space_before(alt((
+        bind!(alloc, parse_comment),
+        assignment,
+        parse_prefix(alloc, 'G', Command::G, parse_gcode),
+        parse_prefix(alloc, 'M', Command::M, parse_mcode),
+        parse_prefix(alloc, 'O', Command::O, parse_ocode),
+        parse_prefix(alloc, 'S', Command::S, parse_scode),
+        parse_prefix(alloc, 'T', Command::T, parse_tcode),
+    )))(input)
 }
 
 fn parse_prefix<'a, 'b, SubCommand>(

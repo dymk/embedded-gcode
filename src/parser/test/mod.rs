@@ -4,11 +4,9 @@ mod test_number_code;
 mod test_parse_axis;
 mod test_parse_command;
 mod test_parse_expression;
+mod test_parse_param;
 
-use crate::{
-    gcode::expression::{BinOp, Expression, FuncCall, UnaryFuncName},
-    ParserAllocator,
-};
+use crate::{gcode::expression::*, ParserAllocator};
 
 extern crate std;
 use std::{collections::HashSet, prelude::v1::*};
@@ -39,14 +37,20 @@ impl<'b> ExprBuilder<'b> {
     pub fn lit(&'b self, val: f32) -> &'b Expression<'b> {
         self.alloc.alloc(Expression::Lit(val)).unwrap()
     }
-    pub fn num_param(&'b self, val: u32) -> &'b Expression<'b> {
-        self.alloc.alloc(Expression::NumberedParam(val)).unwrap()
+    pub fn num_param_expr(&'b self, val: u32) -> &'b Expression<'b> {
+        self.alloc
+            .alloc(Expression::Param(Param::Numbered(NumberedParam(val))))
+            .unwrap()
     }
-    pub fn local_param(&'b self, val: &'b str) -> &'b Expression<'b> {
-        self.alloc.alloc(Expression::NamedLocalParam(val)).unwrap()
+    pub fn local_param_expr(&'b self, val: &'b str) -> &'b Expression<'b> {
+        self.alloc
+            .alloc(Expression::Param(Param::NamedLocal(NamedLocalParam(val))))
+            .unwrap()
     }
-    pub fn global_param(&'b self, val: &'b str) -> &'b Expression<'b> {
-        self.alloc.alloc(Expression::NamedGlobalParam(val)).unwrap()
+    pub fn global_param_expr(&'b self, val: &'b str) -> &'b Expression<'b> {
+        self.alloc
+            .alloc(Expression::Param(Param::NamedGlobal(NamedGlobalParam(val))))
+            .unwrap()
     }
     pub fn atan(&'b self, arg_y: &'b Expression, arg_x: &'b Expression) -> &'b Expression<'b> {
         self.alloc
@@ -56,6 +60,21 @@ impl<'b> ExprBuilder<'b> {
     pub fn unary(&'b self, name: UnaryFuncName, arg: &'b Expression) -> &'b Expression<'b> {
         self.alloc
             .alloc(Expression::FuncCall(FuncCall::unary(name, arg)))
+            .unwrap()
+    }
+    pub fn num_param(&'b self, val: u32) -> &'b Param<'b> {
+        self.alloc
+            .alloc(Param::Numbered(NumberedParam(val)))
+            .unwrap()
+    }
+    pub fn local_param(&'b self, val: &'b str) -> &'b Param<'b> {
+        self.alloc
+            .alloc(Param::NamedLocal(NamedLocalParam(val)))
+            .unwrap()
+    }
+    pub fn global_param(&'b self, val: &'b str) -> &'b Param<'b> {
+        self.alloc
+            .alloc(Param::NamedGlobal(NamedGlobalParam(val)))
             .unwrap()
     }
 }

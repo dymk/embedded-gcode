@@ -1,15 +1,14 @@
-use crate::gcode::Gcode;
-
-use super::{
-    model_state::{ModelState, ModelStateUnit},
+use crate::{
+    gcode::Gcode,
+    interpret::model_state::{ModelState, ModelStateUnit},
     GCodeInterpreter, InterpretError,
 };
 
 impl GCodeInterpreter {
-    pub fn interpret_gcode<'b>(
+    pub fn interpret_gcode(
         &mut self,
         model_state: &mut ModelState,
-        gcode: Gcode<'b>,
+        gcode: Gcode,
     ) -> Result<(), InterpretError> {
         match gcode {
             Gcode::G20 => {

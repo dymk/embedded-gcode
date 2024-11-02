@@ -56,11 +56,3 @@ impl<'a> nom::error::ParseError<&'a [u8]> for GcodeParseError<'a> {
 }
 
 pub type IParseResult<'a, O> = NomIResult<&'a [u8], O, GcodeParseError<'a>>;
-
-pub fn ok<'a, T>(t: T) -> Result<T, GcodeParseError<'a>> {
-    Ok(t)
-}
-
-pub fn err<'a, T>(e: impl Into<GcodeParseError<'a>>) -> Result<T, GcodeParseError<'a>> {
-    Err(e.into())
-}

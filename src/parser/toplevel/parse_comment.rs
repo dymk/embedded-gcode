@@ -1,9 +1,6 @@
 use crate::{
     gcode::Command,
-    parser::{
-        nom_types::{ok, IParseResult},
-        parse_utils::space_before,
-    },
+    parser::{nom_types::IParseResult, ok, parse_utils::space_before},
     ParserAllocator,
 };
 use nom::{

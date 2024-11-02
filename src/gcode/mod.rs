@@ -1,9 +1,12 @@
 pub mod expression;
-use expression::Expression;
+use expression::{Expression, Param};
+
+use crate::NUM_AXES;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Command<'b> {
     Comment(&'b str),
+    Assign(Param<'b>, Expression<'b>),
     G(Gcode<'b>),
     M(Mcode),
     O(Ocode<'b>),
@@ -107,10 +110,10 @@ impl Axis {
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
-pub struct Axes<'b>([Option<Expression<'b>>; 6]);
+pub struct Axes<'b>([Option<Expression<'b>>; NUM_AXES]);
 impl<'b> Axes<'b> {
     pub fn new() -> Self {
-        Self([const { None }; 6])
+        Self([const { None }; NUM_AXES])
     }
     pub fn get(&'b self, axis: Axis) -> Option<&'b Expression<'b>> {
         self.0[axis.to_idx()].as_ref()

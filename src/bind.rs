@@ -11,8 +11,11 @@
 
 #[macro_export]
 macro_rules! bind {
-    ($target:expr, $method:expr) => {
-        move |input| $method($target, input)
+    ($param1:expr, $method:expr) => {
+        move |input| $method($param1, input)
+    };
+    ($param1:expr, $param2:expr, $method:expr) => {
+        move |input| $method($param1, $param2, input)
     };
 }
 

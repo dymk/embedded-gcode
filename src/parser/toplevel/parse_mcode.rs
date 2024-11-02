@@ -1,6 +1,6 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, tag_no_case},
+    bytes::complete::tag_no_case,
     combinator::{fail, map_res, opt},
     sequence::{pair, preceded},
 };
@@ -9,7 +9,8 @@ use crate::{
     bind,
     gcode::Mcode,
     parser::{
-        nom_types::{ok, IParseResult},
+        nom_types::IParseResult,
+        ok,
         parse_utils::{number_code, space_before},
     },
     ParserAllocator,

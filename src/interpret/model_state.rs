@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-const NUM_AXES: usize = 6;
+use crate::NUM_AXES;
 
 #[derive(Debug, Default)]
 pub struct ModelState {

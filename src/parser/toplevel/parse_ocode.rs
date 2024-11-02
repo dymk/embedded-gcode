@@ -1,20 +1,19 @@
-use nom::{
-    branch::alt,
-    bytes::complete::tag_no_case,
-    character::complete::space0,
-    combinator::map_res,
-    sequence::{preceded, tuple},
-};
-
 use crate::{
     gcode::{Ocode, OcodeStatement},
     parser::{
-        bind,
-        nom_types::{ok, IParseResult},
+        bind, map_res_f1,
+        nom_types::IParseResult,
+        ok,
         parse_utils::{parse_u32, space_before},
         toplevel::*,
     },
     ParserAllocator,
+};
+use nom::{
+    branch::alt,
+    bytes::complete::tag_no_case,
+    combinator::map_res,
+    sequence::{preceded, tuple},
 };
 
 pub fn parse_ocode<'a, 'b>(
@@ -28,10 +27,8 @@ pub fn parse_ocode<'a, 'b>(
                 map_res(tag_no_case("sub"), |_| ok(OcodeStatement::Sub)),
                 map_res(tag_no_case("endsub"), |_| ok(OcodeStatement::EndSub)),
                 preceded(
-                    tuple((tag_no_case("if"), space0)),
-                    map_res(bind!(alloc, parse_expression), |expr| {
-                        ok(OcodeStatement::If(expr))
-                    }),
+                    tag_no_case("if"),
+                    map_res_f1(bind!(alloc, parse_expression), OcodeStatement::If),
                 ),
                 map_res(tag_no_case("endif"), |_| ok(OcodeStatement::EndIf)),
             ))),

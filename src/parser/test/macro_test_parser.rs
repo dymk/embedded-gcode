@@ -2,7 +2,7 @@ extern crate std;
 
 use crate::{
     gcode::{expression::Expression, Axes, Command, Gcode},
-    parser::{parse_axes, test::permute_whitespace, toplevel::*},
+    parser::{test::permute_whitespace, toplevel::*},
     GcodeParseError, ParserAllocator,
 };
 
@@ -39,99 +39,49 @@ macro_rules! test_parser {
     };
 }
 
-#[track_caller]
-pub fn test_expr_impl<NodeBuilder>(tokens: &[&str], mut node_builder: NodeBuilder)
-where
-    NodeBuilder: for<'i> FnMut(&'i ExprBuilder<'i>) -> &'i Expression<'i>,
-{
-    for input in permute_whitespace(tokens) {
-        let mut heap = bump_into::space_uninit!(1024);
-        let alloc = ParserAllocator::new(&mut heap);
-        let expr_builder = ExprBuilder::new(&alloc);
-        let expected = node_builder(&expr_builder);
-        let (rest, actual) = match parse_expression(&alloc, input.as_bytes()) {
-            Ok((rest, actual)) => (rest, actual),
-            Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
-                panic!(
-                    "[input `{}`] [code {:?}] [rest: `{}`]",
-                    input,
-                    err.code,
-                    from_utf8(err.input)
-                )
+macro_rules! test_parser_impl {
+    ($impl_func_name:ident, $parser_func_name:ident, $node_type:ty) => {
+        #[track_caller]
+        pub fn $impl_func_name<NodeBuilder>(tokens: &[&str], mut node_builder: NodeBuilder)
+        where
+            NodeBuilder: for<'i> FnMut(&'i ExprBuilder<'i>) -> $node_type,
+        {
+            for input in permute_whitespace(tokens) {
+                let mut heap = bump_into::space_uninit!(1024);
+                let alloc = ParserAllocator::new(&mut heap);
+                let expr_builder = ExprBuilder::new(&alloc);
+                let expected = node_builder(&expr_builder);
+                let (rest, actual) = match $parser_func_name(&alloc, input.as_bytes()) {
+                    Ok((rest, actual)) => (rest, actual),
+                    Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
+                        panic!(
+                            "[input `{}`] [code {:?}] [rest: `{}`]",
+                            input,
+                            err.code,
+                            from_utf8(err.input)
+                        )
+                    }
+                    Err(err) => panic!("{:?}", err),
+                };
+                assert_eq!(
+                    expected.clone(),
+                    actual.clone(),
+                    "[rest `{}`]",
+                    from_utf8(rest)
+                );
+                assert!(
+                    rest.iter().all(|b| b.is_ascii_whitespace()),
+                    "[rest `{}`]",
+                    from_utf8(rest)
+                );
             }
-            Err(err) => panic!("{:?}", err),
-        };
-        assert_eq!(expected, &actual, "[rest `{}`]", from_utf8(rest));
-        assert!(
-            rest.iter().all(|b| b.is_ascii_whitespace()),
-            "[rest `{}`]",
-            from_utf8(rest)
-        );
-    }
+        }
+    };
 }
 
-#[track_caller]
-pub fn test_command_impl<'a, 'b, NodeBuilder>(tokens: &[&str], node_builder: NodeBuilder)
-where
-    NodeBuilder: for<'i> FnMut(&'i ExprBuilder<'i>) -> Command<'i>,
-{
-    let mut node_builder: NodeBuilder = node_builder.into();
-    for input in permute_whitespace(tokens) {
-        let mut heap = bump_into::space_uninit!(1024);
-        let alloc = ParserAllocator::new(&mut heap);
-        let expr_builder = ExprBuilder::new(&alloc);
-        let expected = node_builder(&expr_builder);
-        let (rest, actual) = match parse_command(&alloc, input.as_bytes()) {
-            Ok((rest, actual)) => (rest, actual),
-            Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
-                panic!(
-                    "[input `{}`] [code {:?}] [rest: `{}`]",
-                    input,
-                    err.code,
-                    from_utf8(err.input)
-                )
-            }
-            Err(err) => panic!("{:?}", err),
-        };
-        assert_eq!(expected, actual, "[rest `{}`]", from_utf8(rest));
-        assert!(
-            rest.iter().all(|b| b.is_ascii_whitespace()),
-            "[rest `{}`]",
-            from_utf8(rest)
-        );
-    }
-}
-
-#[track_caller]
-pub fn test_axes_impl<NodeBuilder>(tokens: &[&str], mut node_builder: NodeBuilder)
-where
-    NodeBuilder: for<'i> FnMut(&'i ExprBuilder<'i>) -> Axes<'i>,
-{
-    for input in permute_whitespace(tokens) {
-        let mut heap = bump_into::space_uninit!(1024);
-        let alloc = ParserAllocator::new(&mut heap);
-        let expr_builder = ExprBuilder::new(&alloc);
-        let expected = node_builder(&expr_builder);
-        let (rest, actual) = match parse_axes(&alloc, input.as_bytes()) {
-            Ok((rest, actual)) => (rest, actual),
-            Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
-                panic!(
-                    "[input `{}`] [code {:?}] [rest: `{}`]",
-                    input,
-                    err.code,
-                    from_utf8(err.input)
-                )
-            }
-            Err(err) => panic!("{:?}", err),
-        };
-        assert_eq!(expected, actual, "[rest `{}`]", from_utf8(rest));
-        assert!(
-            rest.iter().all(|b| b.is_ascii_whitespace()),
-            "[rest `{}`]",
-            from_utf8(rest)
-        );
-    }
-}
+test_parser_impl!(test_expr_impl, parse_expression, &'i Expression<'i>);
+test_parser_impl!(test_command_impl, parse_command, Command<'i>);
+test_parser_impl!(test_axes_impl, parse_axes, Axes<'i>);
 
 fn from_utf8(input: &[u8]) -> &str {
     std::str::from_utf8(input).unwrap()

@@ -1,17 +1,18 @@
-use crate::parser::parse_utils::space_before;
-use crate::ParserAllocator;
 use crate::{
-    gcode::expression::{BinOp, BinOpArray, BinOpList, Expression, FuncCall, UnaryFuncName},
-    parser::{bind, fold_many0_result, nom_types::err, ok, parse_utils::parse_u32, IParseResult},
+    bind,
+    gcode::expression::*,
+    parser::{
+        err, fold_many0_result, map_res_f1, ok, parse_utils::space_before, toplevel::*,
+        IParseResult,
+    },
+    ParserAllocator,
 };
-use core::str::from_utf8;
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case},
-    character::complete::{alpha1, alphanumeric1, space0},
-    combinator::{map_res, not, peek, recognize},
+    character::complete::alpha1,
+    combinator::{map_res, not},
     error::{Error, ErrorKind},
-    multi::many0_count,
     number::complete::float,
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
 };
@@ -34,31 +35,20 @@ pub fn parse_expression<'a, 'b>(
     alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
-    parse_expression_generic(alloc, input, &PRECEDENCE_LIST)
+    parse_expression_generic(alloc, &PRECEDENCE_LIST, input)
 }
 
 pub fn parse_atom<'a, 'b>(
     alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
-    let atom = alt((
+    space_before(alt((
         // function call e.g. `ATAN[..expr..]/[..expr..]`, `COS[..expr..]`
         bind!(alloc, parse_func_call),
-        // global named parameter e.g. `#<_foo>`
-        delimited(
-            tuple((tag("#<"), peek(tag("_")))),
-            bind!(alloc, parse_named_global_param),
-            tag(">"),
-        ),
-        // local named parameter e.g. `#<foo>`
-        delimited(tag("#<"), bind!(alloc, parse_named_local_param), tag(">")),
-        // numbered parameter e.g. `#5`
-        preceded(tag("#"), bind!(alloc, parse_numbered_param)),
+        map_res_f1(bind!(alloc, parse_param), Expression::Param),
         // number literal e.g. `1.0`
-        map_res(float, |f| ok(Expression::Lit(f))),
-    ));
-
-    preceded(space0, atom)(input)
+        map_res_f1(float, Expression::Lit),
+    )))(input)
 }
 
 fn parse_func_call<'a, 'b>(
@@ -137,24 +127,23 @@ fn parse_factor<'a, 'b>(
     alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
-    let factor = alt((bind!(alloc, parse_atom), bind!(alloc, parse_group)));
-    preceded(space0, factor)(input)
+    space_before(alt((bind!(alloc, parse_atom), bind!(alloc, parse_group))))(input)
 }
 
 fn parse_expression_generic<'a, 'b>(
     alloc: &'b ParserAllocator<'b>,
-    input: &'a [u8],
     levels: &'a [&'a dyn BinOpList],
+    input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
     if levels.is_empty() {
         parse_factor(alloc, input)
     } else {
         let (next_levels, this_level) = (&levels[0..levels.len() - 1], levels[levels.len() - 1]);
-        let (input, init) = parse_expression_generic(alloc, input, next_levels)?;
+        let (input, init) = parse_expression_generic(alloc, next_levels, input)?;
         fold_many0_result(
             pair(
-                |input| parse_binop(alloc, this_level, input),
-                |input| parse_expression_generic(alloc, input, next_levels),
+                bind!(alloc, this_level, parse_binop),
+                bind!(alloc, next_levels, parse_expression_generic),
             ),
             move || init.clone(),
             |acc, (bin_op, val)| {
@@ -168,53 +157,12 @@ fn parse_expression_generic<'a, 'b>(
     }
 }
 
-fn parse_named_local_param<'a, 'b>(
-    alloc: &'b ParserAllocator<'b>,
-    input: &'a [u8],
-) -> IParseResult<'a, Expression<'b>> {
-    map_res(bind!(alloc, parse_name), |name| {
-        ok(Expression::NamedLocalParam(name))
-    })(input)
-}
-
-fn parse_named_global_param<'a, 'b>(
-    alloc: &'b ParserAllocator<'b>,
-    input: &'a [u8],
-) -> IParseResult<'a, Expression<'b>> {
-    map_res(bind!(alloc, parse_name), |name| {
-        ok(Expression::NamedGlobalParam(name))
-    })(input)
-}
-
-fn parse_numbered_param<'a, 'b>(
-    _: &'b ParserAllocator<'b>,
-    input: &'a [u8],
-) -> IParseResult<'a, Expression<'b>> {
-    map_res(parse_u32(), |digit| ok(Expression::NumberedParam(digit)))(input)
-}
-
-pub fn parse_name<'a, 'b>(
-    alloc: &'b ParserAllocator<'b>,
-    input: &'a [u8],
-) -> IParseResult<'a, &'b str> {
-    map_res(
-        recognize(pair(
-            alt((alpha1, tag("_"))),
-            many0_count(alt((alphanumeric1, tag("_")))),
-        )),
-        move |bytes| {
-            let name_str = from_utf8(bytes)?;
-            ok(alloc.alloc_str(name_str)?)
-        },
-    )(input)
-}
-
 pub fn parse_binop<'a, 'b>(
     _: &'b ParserAllocator<'b>,
     ops: &'a dyn BinOpList,
     input: &'a [u8],
 ) -> IParseResult<'a, BinOp> {
-    preceded(space0, alt(ops))(input)
+    space_before(alt(ops))(input)
 }
 
 fn parse_expr_in_brackets<'a, 'b>(

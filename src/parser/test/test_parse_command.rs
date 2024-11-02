@@ -68,3 +68,31 @@ test_parser!(command, m9, ["M9"], |_| Mcode::M9.into());
 
 test_parser!(command, s1000, ["S1000"], |_| Scode(1000.0).into());
 test_parser!(command, t1, ["T1"], |_| Tcode(1).into());
+
+test_parser!(command, assign, ["#1", "=", "1"], |b| {
+    Command::Assign(b.num_param(1).clone(), b.lit(1.0).clone()).into()
+});
+
+test_parser!(
+    command,
+    assign_expr,
+    ["#1", "=", "[", "1", "+", "2", "]"],
+    |b| {
+        Command::Assign(
+            b.num_param(1).clone(),
+            b.binop(b.lit(1.0), "+", b.lit(2.0)).clone(),
+        )
+        .into()
+    }
+);
+
+test_parser!(command, assign_expr_named_local, ["#<x>", "=", "1"], |b| {
+    Command::Assign(b.local_param("x").clone(), b.lit(1.0).clone()).into()
+});
+
+test_parser!(
+    command,
+    assign_expr_named_global,
+    ["#<_y>", "=", "1"],
+    |b| { Command::Assign(b.global_param("_y").clone(), b.lit(1.0).clone()).into() }
+);

@@ -6,7 +6,10 @@ use crate::parser::{
     toplevel::{parse_atom, parse_binop, parse_name},
 };
 use crate::{
-    gcode::expression::{BinOp, BinOpArray, Expression, UnaryFuncName},
+    gcode::expression::{
+        BinOp, BinOpArray, Expression, NamedGlobalParam, NamedLocalParam, NumberedParam, Param,
+        UnaryFuncName,
+    },
     test_parser,
 };
 use core::str::from_utf8;
@@ -32,9 +35,12 @@ fn test_parse_name(#[case] success: bool, #[case] name: &str) {
 }
 
 #[rstest::rstest]
-#[case("#5", Expression::NumberedParam(5))]
-#[case("#<_abc>", Expression::NamedGlobalParam("_abc"))]
-#[case("#<foo>", Expression::NamedLocalParam("foo"))]
+#[case("#5", Expression::Param(Param::Numbered(NumberedParam(5))))]
+#[case(
+    "#<_abc>",
+    Expression::Param(Param::NamedGlobal(NamedGlobalParam("_abc")))
+)]
+#[case("#<foo>", Expression::Param(Param::NamedLocal(NamedLocalParam("foo"))))]
 #[case("1", Expression::Lit(1.0))]
 #[case("-1.0", Expression::Lit(-1.0))]
 fn test_parse_atom(#[case] input: &str, #[case] expected: Expression) {
@@ -89,15 +95,15 @@ test_parser!(expr, lit_add_parens, ["[", "1.0", "+", "2.0", "]"], |b| {
 });
 
 test_parser!(expr, num_add_lit, ["#4", "+", "2"], |b| {
-    b.binop(b.num_param(4), "+", b.lit(2.0))
+    b.binop(b.num_param_expr(4), "+", b.lit(2.0))
 });
 
 test_parser!(expr, num_add_lit_parens, ["#4", "+", "[", "2", "]"], |b| {
-    b.binop(b.num_param(4), "+", b.lit(2.0))
+    b.binop(b.num_param_expr(4), "+", b.lit(2.0))
 });
 
 test_parser!(expr, lit_sub_local, ["3", "-", "#<foo>"], |b| {
-    b.binop(b.lit(3.0), "-", b.local_param("foo"))
+    b.binop(b.lit(3.0), "-", b.local_param_expr("foo"))
 });
 
 test_parser!(expr, lit_mul_sub, ["1", "*", "2", "-", "3"], |b| {
@@ -124,9 +130,9 @@ test_parser!(
     ["[", "#1", "*", "#<foo>", "]", "-#<_bar>"],
     |b| {
         b.binop(
-            b.binop(b.num_param(1), "*", b.local_param("foo")),
+            b.binop(b.num_param_expr(1), "*", b.local_param_expr("foo")),
             "-",
-            b.global_param("_bar"),
+            b.global_param_expr("_bar"),
         )
     }
 );

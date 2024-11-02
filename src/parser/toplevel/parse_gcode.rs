@@ -1,6 +1,6 @@
-use crate::parser::nom_types::ok;
 use crate::parser::parse_utils::number_code;
 use crate::parser::toplevel::parse_axes;
+use crate::parser::{map_res_f1, ok};
 use crate::{bind, gcode::Gcode, parser::nom_types::IParseResult, ParserAllocator};
 use nom::{
     branch::alt,
@@ -12,24 +12,27 @@ pub fn parse_gcode<'a, 'b>(
     alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Gcode<'b>> {
-    fn make_g<'b, A>(ctor: impl Fn(A) -> Gcode<'b>) -> impl Fn(A) -> Result<Gcode<'b>, ()> {
-        move |axes| Ok(ctor(axes))
+    fn simple_gcode<'a, 'b>(
+        number_str: &'static str,
+        gcode: Gcode<'b>,
+    ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Gcode<'b>> {
+        map_res(number_code(number_str), move |_| ok(gcode.clone()))
     }
 
     alt((
-        map_res(
+        map_res_f1(
             preceded(number_code("0"), opt(bind!(alloc, parse_axes))),
-            make_g(Gcode::G0),
+            Gcode::G0,
         ),
-        map_res(
+        map_res_f1(
             preceded(number_code("1"), bind!(alloc, parse_axes)),
-            make_g(Gcode::G1),
+            Gcode::G1,
         ),
-        map_res(number_code("20"), |_| ok(Gcode::G20)),
-        map_res(number_code("21"), |_| ok(Gcode::G21)),
-        map_res(number_code("53"), |_| ok(Gcode::G53)),
-        map_res(number_code("54"), |_| ok(Gcode::G54)),
-        map_res(number_code("90"), |_| ok(Gcode::G90)),
-        map_res(number_code("91"), |_| ok(Gcode::G91)),
+        simple_gcode("20", Gcode::G20),
+        simple_gcode("21", Gcode::G21),
+        simple_gcode("53", Gcode::G53),
+        simple_gcode("54", Gcode::G54),
+        simple_gcode("90", Gcode::G90),
+        simple_gcode("91", Gcode::G91),
     ))(input)
 }

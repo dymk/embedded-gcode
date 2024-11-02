@@ -18,18 +18,19 @@ pub struct GCodeInterpreter {
 pub enum InterpretError {}
 
 impl GCodeInterpreter {
-    pub fn interpret<'b>(
+    pub fn interpret(
         &mut self,
         model_state: &mut ModelState,
-        command: Command<'b>,
+        command: Command,
     ) -> Result<(), InterpretError> {
         match command {
             Command::Comment(_) => todo!(),
+            Command::Assign(_, _) => todo!(),
             Command::G(gcode) => self.interpret_gcode(model_state, gcode),
-            Command::M(mcode) => todo!(),
-            Command::O(ocode) => todo!(),
-            Command::S(scode) => todo!(),
-            Command::T(tcode) => todo!(),
+            Command::M(_) => todo!(),
+            Command::O(_) => todo!(),
+            Command::S(_) => todo!(),
+            Command::T(_) => todo!(),
         }
     }
 }
