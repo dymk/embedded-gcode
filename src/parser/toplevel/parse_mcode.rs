@@ -13,16 +13,12 @@ use crate::{
         ok,
         parse_utils::{number_code, space_before},
     },
-    ParserAllocator,
 };
 
 use super::parse_tcode::parse_tcode;
 
-pub fn parse_mcode<'a, 'b>(
-    alloc: &'b ParserAllocator<'b>,
-    input: &'a [u8],
-) -> IParseResult<'a, Mcode> {
-    let parse_tcode_prefixed = preceded(space_before(tag_no_case("T")), bind!(alloc, parse_tcode));
+pub fn parse_mcode<'a>(input: &'a [u8]) -> IParseResult<'a, Mcode> {
+    let parse_tcode_prefixed = preceded(space_before(tag_no_case("T")), parse_tcode);
 
     let parse_m6 = map_res(
         pair(number_code("6"), opt(parse_tcode_prefixed)),

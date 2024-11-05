@@ -4,12 +4,12 @@ use crate::{
     GCodeInterpreter, InterpretError,
 };
 
-impl<'a> GCodeInterpreter<'a> {
+impl GCodeInterpreter {
     pub fn interpret_gcode(
         &mut self,
         model_state: &mut ModelState,
-        gcode: Gcode<'a>,
-    ) -> Result<(), InterpretError<'a>> {
+        gcode: Gcode,
+    ) -> Result<(), InterpretError> {
         match gcode {
             Gcode::G20 => {
                 model_state.selected_unit = ModelStateUnit::In;

@@ -8,65 +8,49 @@ mod test_parse_command;
 mod test_parse_expression;
 mod test_parse_param;
 
-use crate::{gcode::expression::*, ParserAllocator};
+use crate::gcode::expression::*;
 use std::{collections::HashSet, prelude::v1::*};
 
-pub struct ExprBuilder<'b> {
-    alloc: &'b ParserAllocator<'b>,
-}
+struct ExprBuilder {}
 
-impl<'b> ExprBuilder<'b> {
-    pub fn new(alloc: &'b ParserAllocator<'b>) -> Self {
-        Self { alloc }
+impl ExprBuilder {
+    pub fn new() -> Self {
+        Self {}
     }
 
-    pub fn binop(
-        &'b self,
-        left: Expression<'b>,
-        op: &'static str,
-        right: Expression<'b>,
-    ) -> Expression<'b> {
+    pub fn binop(&self, left: Expression, op: &'static str, right: Expression) -> Expression {
         Expression::BinOpExpr {
             op: BinOp::from_value(op.as_bytes()).unwrap(),
-            left: self.alloc.alloc(left).unwrap(),
-            right: self.alloc.alloc(right).unwrap(),
+            left: Box::new(left),
+            right: Box::new(right),
         }
     }
-    pub fn lit(&'b self, val: f32) -> Expression<'b> {
+    pub fn lit(&self, val: f32) -> Expression {
         Expression::Lit(val)
     }
-    pub fn num_param_expr(&'b self, val: u32) -> Expression<'b> {
+    pub fn num_param_expr(&self, val: u32) -> Expression {
         Expression::Param(Param::Numbered(NumberedParam(val)))
     }
-    pub fn local_param_expr(&'b self, val: &'b str) -> Expression<'b> {
-        Expression::Param(Param::NamedLocal(NamedLocalParam(val)))
+    pub fn local_param_expr(&self, val: impl Into<String>) -> Expression {
+        Expression::Param(Param::NamedLocal(NamedLocalParam(val.into())))
     }
-    pub fn global_param_expr(&'b self, val: &'b str) -> Expression<'b> {
-        Expression::Param(Param::NamedGlobal(NamedGlobalParam(val)))
+    pub fn global_param_expr(&self, val: impl Into<String>) -> Expression {
+        Expression::Param(Param::NamedGlobal(NamedGlobalParam(val.into())))
     }
-    pub fn atan(&'b self, arg_y: Expression<'b>, arg_x: Expression<'b>) -> Expression<'b> {
-        Expression::FuncCall(FuncCall::atan(
-            self.alloc.alloc(arg_y).unwrap(),
-            self.alloc.alloc(arg_x).unwrap(),
-        ))
+    pub fn atan(&self, arg_y: Expression, arg_x: Expression) -> Expression {
+        Expression::FuncCall(FuncCall::atan(Box::new(arg_y), Box::new(arg_x)))
     }
-    pub fn unary(&'b self, name: UnaryFuncName, arg: Expression<'b>) -> Expression<'b> {
-        Expression::FuncCall(FuncCall::unary(name, self.alloc.alloc(arg).unwrap()))
+    pub fn unary(&self, name: UnaryFuncName, arg: Expression) -> Expression {
+        Expression::FuncCall(FuncCall::unary(name, Box::new(arg)))
     }
-    pub fn num_param(&'b self, val: u32) -> &'b Param<'b> {
-        self.alloc
-            .alloc(Param::Numbered(NumberedParam(val)))
-            .unwrap()
+    pub fn num_param(&self, val: u32) -> Param {
+        Param::Numbered(NumberedParam(val))
     }
-    pub fn local_param(&'b self, val: &'b str) -> &'b Param<'b> {
-        self.alloc
-            .alloc(Param::NamedLocal(NamedLocalParam(val)))
-            .unwrap()
+    pub fn local_param(&self, val: impl Into<String>) -> Param {
+        Param::NamedLocal(NamedLocalParam(val.into()))
     }
-    pub fn global_param(&'b self, val: &'b str) -> &'b Param<'b> {
-        self.alloc
-            .alloc(Param::NamedGlobal(NamedGlobalParam(val)))
-            .unwrap()
+    pub fn global_param(&self, val: impl Into<String>) -> Param {
+        Param::NamedGlobal(NamedGlobalParam(val.into()))
     }
 }
 

@@ -1,42 +1,34 @@
 use crate::{
-    bind,
     gcode::{expression::Expression, Axes, Axis, GcodeParser},
     parser::{nom_types::IParseResult, parse_utils::space_before},
-    ParserAllocator,
 };
 use nom::{character::complete::one_of, combinator::map_res, multi::fold_many1, sequence::pair};
 
-impl<'a, 'b> GcodeParser<'a, 'b> for Axes<'b> {
-    fn parse(alloc: &'b ParserAllocator<'b>, input: &'a [u8]) -> IParseResult<'a, Self> {
-        parse_axes(alloc, input)
+impl GcodeParser for Axes {
+    fn parse<'i>(input: &'i [u8]) -> IParseResult<'i, Self> {
+        parse_axes(input)
     }
 }
 
-impl<'a, 'b> GcodeParser<'a, 'b> for (Axis, Expression<'b>) {
-    fn parse(alloc: &'b ParserAllocator<'b>, input: &'a [u8]) -> IParseResult<'a, Self> {
-        parse_axis(alloc, input)
+impl GcodeParser for (Axis, Expression) {
+    fn parse<'i>(input: &'i [u8]) -> IParseResult<'i, Self> {
+        parse_axis(input)
     }
 }
 
-fn parse_axes<'a, 'b>(
-    alloc: &'b ParserAllocator<'b>,
-    input: &'a [u8],
-) -> IParseResult<'a, Axes<'b>> {
+fn parse_axes<'i>(input: &'i [u8]) -> IParseResult<'i, Axes> {
     fold_many1(
-        bind!(alloc, <(Axis, Expression)>::parse),
+        <(Axis, Expression)>::parse,
         Axes::default,
         |axes, (axis, expr)| axes.set(axis, expr),
     )(input)
 }
 
-fn parse_axis<'a, 'b>(
-    alloc: &'b ParserAllocator<'b>,
-    input: &'a [u8],
-) -> IParseResult<'a, (Axis, Expression<'b>)> {
+fn parse_axis<'i>(input: &'i [u8]) -> IParseResult<'i, (Axis, Expression)> {
     map_res(
         pair(
             space_before(one_of("XYZABCxyzabc")),
-            space_before(bind!(alloc, Expression::parse)),
+            space_before(Expression::parse),
         ),
         |(chr, expr)| {
             let axis = match Axis::from_chr(chr) {

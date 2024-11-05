@@ -1,3 +1,4 @@
+use alloc::string::String;
 use model_state::ModelState;
 
 use crate::gcode::{
@@ -11,24 +12,24 @@ mod model_state;
 mod test;
 
 #[derive(Debug, Default)]
-pub struct GCodeInterpreter<'a> {
+pub struct GCodeInterpreter {
     local_vars_numbered: hashbrown::HashMap<u32, f32>,
-    local_vars_named: hashbrown::HashMap<&'a str, f32>,
-    global_vars: hashbrown::HashMap<&'a str, f32>,
+    local_vars_named: hashbrown::HashMap<String, f32>,
+    global_vars: hashbrown::HashMap<String, f32>,
     model_state: model_state::ModelState,
 }
 
 #[derive(Debug)]
-pub enum InterpretError<'a> {
-    ParamNotFound(Param<'a>),
+pub enum InterpretError {
+    ParamNotFound(Param),
 }
 
-impl<'a> GCodeInterpreter<'a> {
+impl GCodeInterpreter {
     pub fn interpret(
         &mut self,
         model_state: &mut ModelState,
-        command: Command<'a>,
-    ) -> Result<(), InterpretError<'a>> {
+        command: Command,
+    ) -> Result<(), InterpretError> {
         match command {
             Command::Comment(_) => todo!(),
             Command::Assign(to, from) => self.interpret_assign(model_state, to, from),
@@ -43,9 +44,9 @@ impl<'a> GCodeInterpreter<'a> {
     fn interpret_assign(
         &mut self,
         _: &mut ModelState,
-        to: Param<'a>,
-        from: Expression<'a>,
-    ) -> Result<(), InterpretError<'a>> {
+        to: Param,
+        from: Expression,
+    ) -> Result<(), InterpretError> {
         let from = self.eval_expr(&from);
         let to = self
             .get_param_mut(&to)
@@ -61,8 +62,12 @@ impl<'a> GCodeInterpreter<'a> {
     fn get_param(&self, param: &Param) -> Option<f32> {
         match param {
             Param::Numbered(numbered_param) => self.local_vars_numbered.get(&numbered_param.0),
-            Param::NamedLocal(named_local_param) => self.local_vars_named.get(named_local_param.0),
-            Param::NamedGlobal(named_global_param) => self.global_vars.get(named_global_param.0),
+            Param::NamedLocal(named_local_param) => {
+                self.local_vars_named.get(&named_local_param.0[..])
+            }
+            Param::NamedGlobal(named_global_param) => {
+                self.global_vars.get(&named_global_param.0[..])
+            }
         }
         .copied()
     }
@@ -139,10 +144,10 @@ impl<'a> GCodeInterpreter<'a> {
     fn eval_exists_func_call(&self, param: &NamedParam) -> f32 {
         cast_f32(match param {
             NamedParam::NamedLocal(named_local_param) => {
-                self.local_vars_named.contains_key(named_local_param.0)
+                self.local_vars_named.contains_key(&named_local_param.0[..])
             }
             NamedParam::NamedGlobal(named_global_param) => {
-                self.global_vars.contains_key(named_global_param.0)
+                self.global_vars.contains_key(&named_global_param.0[..])
             }
         })
     }

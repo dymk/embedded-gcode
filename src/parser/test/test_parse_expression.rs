@@ -5,7 +5,7 @@ use crate::{
         BinOp, BinOpArray, Expression, NamedGlobalParam, NamedLocalParam, NumberedParam, Param,
         UnaryFuncName,
     },
-    parser::{nom_types::GcodeParseError, parser_allocator::ParserAllocator, toplevel::*},
+    parser::{nom_types::GcodeParseError, toplevel::*},
 };
 use core::str::from_utf8;
 use nom::error::Error;
@@ -15,15 +15,13 @@ use std::prelude::v1::*;
 #[case("#5", Expression::Param(Param::Numbered(NumberedParam(5))))]
 #[case(
     "#<_abc>",
-    Expression::Param(Param::NamedGlobal(NamedGlobalParam("_abc")))
+    Expression::Param(Param::NamedGlobal(NamedGlobalParam("_abc".to_string())))
 )]
-#[case("#<foo>", Expression::Param(Param::NamedLocal(NamedLocalParam("foo"))))]
+#[case("#<foo>", Expression::Param(Param::NamedLocal(NamedLocalParam("foo".to_string()))))]
 #[case("1", Expression::Lit(1.0))]
 #[case("-1.0", Expression::Lit(-1.0))]
 fn test_parse_atom(#[case] input: &str, #[case] expected: Expression) {
-    let mut heap = bump_into::space_uninit!(1024);
-    let alloc = ParserAllocator::new(&mut heap);
-    let parsed = match parse_atom(&alloc, input.as_bytes()) {
+    let parsed = match parse_atom(input.as_bytes()) {
         Ok((_, parsed)) => parsed,
         Err(nom::Err::Error(GcodeParseError::NomError(Error { input, code }))) => {
             panic!("{:?} {}", code, from_utf8(input).unwrap())
@@ -56,9 +54,7 @@ fn test_parse_binop<const N: usize>(
     #[case] allowed: [BinOp; N],
 ) {
     let list = BinOpArray::from_list(allowed);
-    let mut heap = bump_into::space_uninit!(1024);
-    let alloc = ParserAllocator::new(&mut heap);
-    match (expected, parse_binop(&alloc, &list, input.as_bytes())) {
+    match (expected, parse_binop(&list, input.as_bytes())) {
         (Some(expected), Ok((_, parsed))) => assert_eq!(parsed, expected),
         (None, Err(_)) => {}
         (a, b) => panic!("unexpected result: expected={:?} actual={:?}", a, b),
@@ -80,7 +76,7 @@ test_parse_expr!(num_add_lit_parens, ["#4", "+", "[", "2", "]"], |b| {
 });
 
 test_parse_expr!(lit_sub_local, ["3", "-", "#<foo>"], |b| {
-    b.binop(b.lit(3.0), "-", b.local_param_expr("foo"))
+    b.binop(b.lit(3.0), "-", b.local_param_expr("foo".to_string()))
 });
 
 test_parse_expr!(lit_mul_sub, ["1", "*", "2", "-", "3"], |b| {

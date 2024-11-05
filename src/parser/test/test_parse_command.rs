@@ -5,17 +5,17 @@ use crate::gcode::*;
 test_parse_command!(g0, ["G0"], |_| Gcode::G0(None).into());
 
 test_parse_command!(g0_x1, ["G0", "X1"], |b| Gcode::G0(Some(
-    Axes::new().set(Axis::X, b.lit(1.0).clone())
+    Axes::new().set(Axis::X, b.lit(1.0))
 ))
 .into());
 
 test_parse_command!(g0_x_expr_lit, ["G0", "X", "[", "1", "]"], |b| {
-    Gcode::G0(Some(Axes::new().set(Axis::X, b.lit(1.0).clone()))).into()
+    Gcode::G0(Some(Axes::new().set(Axis::X, b.lit(1.0)))).into()
 });
 
 test_parse_command!(g0_x_expr_binop, ["G0", "X", "[", "1", "+", "2", "]"], |b| {
     Gcode::G0(Some(
-        Axes::new().set(Axis::X, b.binop(b.lit(1.0), "+", b.lit(2.0)).clone()),
+        Axes::new().set(Axis::X, b.binop(b.lit(1.0), "+", b.lit(2.0))),
     ))
     .into()
 });
@@ -64,21 +64,17 @@ test_parse_command!(s1000, ["S1000"], |_| Scode(1000.0).into());
 test_parse_command!(t1, ["T1"], |_| Tcode(1).into());
 
 test_parse_command!(assign, ["#1", "=", "1"], |b| {
-    Command::Assign(b.num_param(1).clone(), b.lit(1.0).clone()).into()
+    Command::Assign(b.num_param(1), b.lit(1.0)).into()
 });
 
 test_parse_command!(assign_expr, ["#1", "=", "[", "1", "+", "2", "]"], |b| {
-    Command::Assign(
-        b.num_param(1).clone(),
-        b.binop(b.lit(1.0), "+", b.lit(2.0)).clone(),
-    )
-    .into()
+    Command::Assign(b.num_param(1), b.binop(b.lit(1.0), "+", b.lit(2.0))).into()
 });
 
 test_parse_command!(assign_expr_named_local, ["#<x>", "=", "1"], |b| {
-    Command::Assign(b.local_param("x").clone(), b.lit(1.0).clone()).into()
+    Command::Assign(b.local_param("x"), b.lit(1.0)).into()
 });
 
 test_parse_command!(assign_expr_named_global, ["#<_y>", "=", "1"], |b| {
-    Command::Assign(b.global_param("_y").clone(), b.lit(1.0).clone()).into()
+    Command::Assign(b.global_param("_y"), b.lit(1.0)).into()
 });

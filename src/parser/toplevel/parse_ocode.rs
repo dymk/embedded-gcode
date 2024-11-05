@@ -1,12 +1,11 @@
 use crate::{
     gcode::{expression::Expression, GcodeParser as _, Ocode, OcodeStatement},
     parser::{
-        bind, map_res_f1,
+        map_res_f1,
         nom_types::IParseResult,
         ok,
         parse_utils::{parse_u32, space_before},
     },
-    ParserAllocator,
 };
 use nom::{
     branch::alt,
@@ -15,10 +14,7 @@ use nom::{
     sequence::{preceded, tuple},
 };
 
-pub fn parse_ocode<'a, 'b>(
-    alloc: &'b ParserAllocator<'b>,
-    input: &'a [u8],
-) -> IParseResult<'a, Ocode<'b>> {
+pub fn parse_ocode<'a>(input: &'a [u8]) -> IParseResult<'a, Ocode> {
     map_res(
         tuple((
             parse_u32(),
@@ -27,7 +23,7 @@ pub fn parse_ocode<'a, 'b>(
                 map_res(tag_no_case("endsub"), |_| ok(OcodeStatement::EndSub)),
                 preceded(
                     tag_no_case("if"),
-                    map_res_f1(bind!(alloc, Expression::parse), OcodeStatement::If),
+                    map_res_f1(Expression::parse, OcodeStatement::If),
                 ),
                 map_res(tag_no_case("endif"), |_| ok(OcodeStatement::EndIf)),
             ))),

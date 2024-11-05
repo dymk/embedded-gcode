@@ -1,42 +1,44 @@
 use crate::enum_value_map;
+use alloc::boxed::Box;
+use alloc::string::String;
 #[cfg(test)]
 use bump_into::BumpInto;
 use core::fmt::Debug;
 use core::str::from_utf8;
 
 #[derive(PartialEq, Clone)]
-pub enum Expression<'b> {
+pub enum Expression {
     Lit(f32),
-    Param(Param<'b>),
+    Param(Param),
     BinOpExpr {
         op: BinOp,
-        left: &'b Expression<'b>,
-        right: &'b Expression<'b>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
-    FuncCall(FuncCall<'b>),
+    FuncCall(FuncCall),
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Param<'b> {
+pub enum Param {
     Numbered(NumberedParam),
-    NamedLocal(NamedLocalParam<'b>),
-    NamedGlobal(NamedGlobalParam<'b>),
+    NamedLocal(NamedLocalParam),
+    NamedGlobal(NamedGlobalParam),
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum NamedParam<'b> {
-    NamedLocal(NamedLocalParam<'b>),
-    NamedGlobal(NamedGlobalParam<'b>),
+pub enum NamedParam {
+    NamedLocal(NamedLocalParam),
+    NamedGlobal(NamedGlobalParam),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct NumberedParam(pub u32);
 #[derive(Debug, PartialEq, Clone)]
-pub struct NamedLocalParam<'b>(pub &'b str);
+pub struct NamedLocalParam(pub String);
 #[derive(Debug, PartialEq, Clone)]
-pub struct NamedGlobalParam<'b>(pub &'b str);
+pub struct NamedGlobalParam(pub String);
 
-impl Debug for Expression<'_> {
+impl Debug for Expression {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Lit(arg0) => f.write_fmt(format_args!("{}", arg0)),
@@ -55,13 +57,6 @@ impl Debug for Expression<'_> {
             )),
             Self::FuncCall(func_call) => f.write_fmt(format_args!("{:?}", func_call)),
         }
-    }
-}
-
-#[cfg(test)]
-impl<'b> Expression<'b> {
-    pub fn bump(self, bump: &'b BumpInto<'b>) -> &'b Self {
-        bump.alloc(self).unwrap()
     }
 }
 
@@ -103,25 +98,25 @@ enum_value_map!(enum UnaryFuncName: &'static [u8] {
 });
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum FuncCall<'b> {
+pub enum FuncCall {
     Exists {
-        param: NamedParam<'b>,
+        param: NamedParam,
     },
     Atan {
-        arg_y: &'b Expression<'b>,
-        arg_x: &'b Expression<'b>,
+        arg_y: Box<Expression>,
+        arg_x: Box<Expression>,
     },
     Unary {
         name: UnaryFuncName,
-        arg: &'b Expression<'b>,
+        arg: Box<Expression>,
     },
 }
 
-impl<'b> FuncCall<'b> {
-    pub fn atan(arg_y: &'b Expression<'b>, arg_x: &'b Expression<'b>) -> Self {
+impl FuncCall {
+    pub fn atan(arg_y: Box<Expression>, arg_x: Box<Expression>) -> Self {
         Self::Atan { arg_y, arg_x }
     }
-    pub fn unary(name: UnaryFuncName, arg: &'b Expression<'b>) -> Self {
+    pub fn unary(name: UnaryFuncName, arg: Box<Expression>) -> Self {
         Self::Unary { name, arg }
     }
 }

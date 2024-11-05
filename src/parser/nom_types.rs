@@ -1,4 +1,4 @@
-use super::parser_allocator::AllocError;
+use alloc::string::FromUtf8Error;
 use core::str::Utf8Error;
 use nom::{
     error::{Error as NomError, ErrorKind as NomErrorKind, FromExternalError},
@@ -10,15 +10,6 @@ pub enum GcodeParseError<'a> {
     NomError(NomError<&'a [u8]>),
     OutOfMemory,
     Utf8Error,
-}
-
-impl From<AllocError> for GcodeParseError<'_> {
-    fn from(value: AllocError) -> Self {
-        match value {
-            AllocError::OutOfMemory => GcodeParseError::OutOfMemory,
-            AllocError::Utf8Error => GcodeParseError::Utf8Error,
-        }
-    }
 }
 
 impl<'a> From<NomError<&'a [u8]>> for GcodeParseError<'a> {
@@ -33,9 +24,9 @@ impl From<Utf8Error> for GcodeParseError<'_> {
     }
 }
 
-impl From<AllocError> for nom::Err<GcodeParseError<'_>> {
-    fn from(value: AllocError) -> Self {
-        nom::Err::Error(value.into())
+impl From<FromUtf8Error> for GcodeParseError<'_> {
+    fn from(_: FromUtf8Error) -> Self {
+        GcodeParseError::Utf8Error
     }
 }
 

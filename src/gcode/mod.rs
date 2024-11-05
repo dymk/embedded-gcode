@@ -1,30 +1,31 @@
 pub mod expression;
+use alloc::string::String;
 use expression::{Expression, Param};
 
-use crate::{parser::IParseResult, ParserAllocator, NUM_AXES};
+use crate::{parser::IParseResult, NUM_AXES};
 
-pub trait GcodeParser<'a, 'b>
+pub trait GcodeParser
 where
     Self: Sized,
 {
-    fn parse(alloc: &'b ParserAllocator<'b>, input: &'a [u8]) -> IParseResult<'a, Self>;
+    fn parse<'i>(input: &'i [u8]) -> IParseResult<'i, Self>;
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Command<'b> {
-    Comment(&'b str),
-    Assign(Param<'b>, Expression<'b>),
-    G(Gcode<'b>),
+pub enum Command {
+    Comment(String),
+    Assign(Param, Expression),
+    G(Gcode),
     M(Mcode),
-    O(Ocode<'b>),
+    O(Ocode),
     S(Scode),
     T(Tcode),
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Gcode<'b> {
-    G0(Option<Axes<'b>>),
-    G1(Axes<'b>),
+pub enum Gcode {
+    G0(Option<Axes>),
+    G1(Axes),
     /// inch units
     G20,
     /// mm units
@@ -54,22 +55,22 @@ pub enum Mcode {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Ocode<'b> {
+pub struct Ocode {
     id: u32,
-    statement: OcodeStatement<'b>,
+    statement: OcodeStatement,
 }
 
-impl<'b> Ocode<'b> {
-    pub fn new(id: u32, statement: OcodeStatement<'b>) -> Self {
+impl Ocode {
+    pub fn new(id: u32, statement: OcodeStatement) -> Self {
         Self { id, statement }
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum OcodeStatement<'b> {
+pub enum OcodeStatement {
     Sub,
     EndSub,
-    If(Expression<'b>),
+    If(Expression),
     EndIf,
 }
 
@@ -117,15 +118,15 @@ impl Axis {
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
-pub struct Axes<'b>([Option<Expression<'b>>; NUM_AXES]);
-impl<'b> Axes<'b> {
+pub struct Axes([Option<Expression>; NUM_AXES]);
+impl Axes {
     pub fn new() -> Self {
         Self([const { None }; NUM_AXES])
     }
-    pub fn get(&'b self, axis: Axis) -> Option<&'b Expression<'b>> {
+    pub fn get(&self, axis: Axis) -> Option<&Expression> {
         self.0[axis.to_idx()].as_ref()
     }
-    pub fn set(mut self, axis: Axis, value: Expression<'b>) -> Self {
+    pub fn set(mut self, axis: Axis, value: Expression) -> Self {
         self.0[axis.to_idx()] = Some(value);
         self
     }
@@ -134,7 +135,7 @@ impl<'b> Axes<'b> {
 macro_rules! from_impl {
     ($($name:ident $ty:ident),+) => {
         $(
-            impl From<$ty> for Command<'_> {
+            impl From<$ty> for Command {
                 fn from(t: $ty) -> Self {
                     Command::$name(t)
                 }
@@ -148,14 +149,14 @@ macro_rules! from_impl {
 
 from_impl!(M Mcode, S Scode, T Tcode);
 
-impl<'b> From<Ocode<'b>> for Command<'b> {
-    fn from(t: Ocode<'b>) -> Self {
+impl From<Ocode> for Command {
+    fn from(t: Ocode) -> Self {
         Command::O(t)
     }
 }
 
-impl<'b> From<Gcode<'b>> for Command<'b> {
-    fn from(t: Gcode<'b>) -> Self {
+impl From<Gcode> for Command {
+    fn from(t: Gcode) -> Self {
         Command::G(t)
     }
 }
