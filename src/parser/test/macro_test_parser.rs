@@ -9,11 +9,14 @@ use crate::{
 macro_rules! test_parser_impl {
     ($test_func_name:ident, $node_type:ident) => {
         #[track_caller]
-        pub fn $test_func_name(tokens: &[&str], node_builder: impl Fn(&ExprBuilder) -> $node_type) {
+        pub fn $test_func_name<IntoNodeType: Into<$node_type>>(
+            tokens: &[&str],
+            node_builder: impl Fn(&ExprBuilder) -> IntoNodeType,
+        ) {
             for input in permute_whitespace(tokens) {
                 let expr_builder = ExprBuilder::new();
-                let expected = node_builder(&expr_builder);
-                use crate::gcode::GcodeParser;
+                let expected = node_builder(&expr_builder).into();
+                use crate::parser::GcodeParser;
                 let (rest, actual) = match $node_type::parse(input.as_bytes()) {
                     Ok((rest, actual)) => (rest, actual),
                     Err(nom::Err::Error(GcodeParseError::NomError(err))) => {

@@ -8,7 +8,7 @@ mod test_parse_command;
 mod test_parse_expression;
 mod test_parse_param;
 
-use crate::gcode::expression::*;
+use crate::gcode::{expression::*, BinOp};
 use std::{collections::HashSet, prelude::v1::*};
 
 struct ExprBuilder {}
@@ -18,39 +18,50 @@ impl ExprBuilder {
         Self {}
     }
 
-    pub fn binop(&self, left: Expression, op: &'static str, right: Expression) -> Expression {
+    pub fn binop(
+        &self,
+        left: impl Into<Expression>,
+        op: &'static str,
+        right: impl Into<Expression>,
+    ) -> Expression {
         Expression::BinOpExpr {
             op: BinOp::from_value(op.as_bytes()).unwrap(),
-            left: Box::new(left),
-            right: Box::new(right),
+            left: Box::new(left.into()),
+            right: Box::new(right.into()),
         }
     }
     pub fn lit(&self, val: f32) -> Expression {
-        Expression::Lit(val)
+        Expression::lit(val)
     }
     pub fn num_param_expr(&self, val: u32) -> Expression {
-        Expression::Param(Param::Numbered(NumberedParam(val)))
+        Expression::param(Param::numbered(val))
     }
     pub fn local_param_expr(&self, val: impl Into<String>) -> Expression {
-        Expression::Param(Param::NamedLocal(NamedLocalParam(val.into())))
+        Expression::param(Param::named_local(val))
     }
     pub fn global_param_expr(&self, val: impl Into<String>) -> Expression {
-        Expression::Param(Param::NamedGlobal(NamedGlobalParam(val.into())))
+        Expression::param(Param::named_global(val))
     }
-    pub fn atan(&self, arg_y: Expression, arg_x: Expression) -> Expression {
-        Expression::FuncCall(FuncCall::atan(Box::new(arg_y), Box::new(arg_x)))
+    pub fn atan(&self, arg_y: impl Into<Expression>, arg_x: impl Into<Expression>) -> Expression {
+        Expression::func_call(FuncCall::atan(
+            Box::new(arg_y.into()),
+            Box::new(arg_x.into()),
+        ))
     }
-    pub fn unary(&self, name: UnaryFuncName, arg: Expression) -> Expression {
-        Expression::FuncCall(FuncCall::unary(name, Box::new(arg)))
+    pub fn unary(&self, name: UnaryFuncName, arg: impl Into<Expression>) -> Expression {
+        Expression::func_call(FuncCall::unary(name, Box::new(arg.into())))
     }
-    pub fn num_param(&self, val: u32) -> Param {
-        Param::Numbered(NumberedParam(val))
+    pub fn exists(&self, param: NamedParam) -> Expression {
+        Expression::func_call(FuncCall::exists(param))
     }
-    pub fn local_param(&self, val: impl Into<String>) -> Param {
-        Param::NamedLocal(NamedLocalParam(val.into()))
+    pub fn num_param(&self, val: u32) -> NumberedParam {
+        NumberedParam::numbered(val)
     }
-    pub fn global_param(&self, val: impl Into<String>) -> Param {
-        Param::NamedGlobal(NamedGlobalParam(val.into()))
+    pub fn local_param(&self, val: impl Into<String>) -> NamedParam {
+        NamedParam::named_local(val)
+    }
+    pub fn global_param(&self, val: impl Into<String>) -> NamedParam {
+        NamedParam::named_global(val)
     }
 }
 

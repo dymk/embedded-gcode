@@ -7,7 +7,12 @@ pub mod toplevel;
 #[cfg(test)]
 mod test;
 
-use crate::bind;
+pub trait GcodeParser
+where
+    Self: Sized,
+{
+    fn parse(input: &[u8]) -> IParseResult<'_, Self>;
+}
 pub use fold_many0_result::fold_many0_result;
 pub use nom_types::GcodeParseError;
 pub use nom_types::IParseResult;

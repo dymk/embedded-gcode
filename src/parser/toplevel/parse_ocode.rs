@@ -1,11 +1,12 @@
 use crate::{
-    gcode::{expression::Expression, GcodeParser as _, Ocode, OcodeStatement},
+    gcode::{expression::Expression, Ocode, OcodeStatement},
     parser::{
         map_res_f1,
         nom_types::IParseResult,
         ok,
         parse_utils::{parse_u32, space_before},
     },
+    GcodeParser,
 };
 use nom::{
     branch::alt,
@@ -14,7 +15,13 @@ use nom::{
     sequence::{preceded, tuple},
 };
 
-pub fn parse_ocode<'a>(input: &'a [u8]) -> IParseResult<'a, Ocode> {
+impl GcodeParser for Ocode {
+    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+        parse_ocode(input)
+    }
+}
+
+fn parse_ocode(input: &[u8]) -> IParseResult<'_, Ocode> {
     map_res(
         tuple((
             parse_u32(),

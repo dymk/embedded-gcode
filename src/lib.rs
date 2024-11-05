@@ -11,5 +11,8 @@ mod parse_error;
 mod parser;
 
 const NUM_AXES: usize = 3;
-pub use crate::interpret::{GCodeInterpreter, InterpretError};
+pub use crate::gcode::Command;
+pub use crate::interpret::InterpretError;
+pub use crate::interpret::Interpreter;
 pub use crate::parser::GcodeParseError;
+pub use crate::parser::GcodeParser;

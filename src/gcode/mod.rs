@@ -1,15 +1,9 @@
+mod binop;
 pub mod expression;
+use crate::NUM_AXES;
 use alloc::string::String;
+pub use binop::*;
 use expression::{Expression, Param};
-
-use crate::{parser::IParseResult, NUM_AXES};
-
-pub trait GcodeParser
-where
-    Self: Sized,
-{
-    fn parse<'i>(input: &'i [u8]) -> IParseResult<'i, Self>;
-}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Command {
@@ -20,6 +14,12 @@ pub enum Command {
     O(Ocode),
     S(Scode),
     T(Tcode),
+}
+
+impl Command {
+    pub fn assign(param: impl Into<Param>, expr: impl Into<Expression>) -> Self {
+        Self::Assign(param.into(), expr.into())
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

@@ -9,7 +9,7 @@ use nom::{
     sequence::delimited,
 };
 
-pub fn parse_comment<'a>(input: &'a [u8]) -> IParseResult<'a, Command> {
+pub fn parse_comment(input: &[u8]) -> IParseResult<'_, Command> {
     map_res(
         delimited(space_before(tag("(")), take_until1(")"), tag(")")),
         move |bytes| {

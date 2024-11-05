@@ -28,6 +28,13 @@ pub fn map_res_f1<'a, 'b, T, R>(
 }
 
 #[inline(always)]
+pub fn map_res_into<'a, T: Into<R>, R>(
+    parser: impl Parser<&'a [u8], T, GcodeParseError<'a>>,
+) -> impl Parser<&'a [u8], R, GcodeParseError<'a>> {
+    map_res(parser, move |value| ok(value.into()))
+}
+
+#[inline(always)]
 pub fn number_code<'a>(number: &'static str) -> impl FnMut(&'a [u8]) -> IParseResult<'a, &'a [u8]> {
     // exact number str followed by non-digit
     terminated(tag(number), not(digit1))

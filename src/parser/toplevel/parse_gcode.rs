@@ -1,6 +1,7 @@
-use crate::gcode::{Axes, GcodeParser as _};
+use crate::gcode::Axes;
 use crate::parser::parse_utils::number_code;
 use crate::parser::{map_res_f1, ok};
+use crate::GcodeParser;
 use crate::{gcode::Gcode, parser::nom_types::IParseResult};
 use nom::{
     branch::alt,
@@ -8,7 +9,13 @@ use nom::{
     sequence::preceded,
 };
 
-pub fn parse_gcode<'a>(input: &'a [u8]) -> IParseResult<'a, Gcode> {
+impl GcodeParser for Gcode {
+    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+        parse_gcode(input)
+    }
+}
+
+fn parse_gcode(input: &[u8]) -> IParseResult<'_, Gcode> {
     fn simple_gcode<'a>(
         number_str: &'static str,
         gcode: Gcode,

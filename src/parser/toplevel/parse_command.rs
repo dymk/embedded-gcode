@@ -1,6 +1,7 @@
 use crate::{
-    gcode::{Command, GcodeParser},
+    gcode::{Command, Gcode, Mcode, Ocode, Scode, Tcode},
     parser::{nom_types::IParseResult, ok, parse_utils::space_before, toplevel::*},
+    GcodeParser,
 };
 use nom::{
     branch::alt,
@@ -10,22 +11,22 @@ use nom::{
 };
 
 impl GcodeParser for Command {
-    fn parse<'a>(input: &'a [u8]) -> IParseResult<'a, Self> {
+    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
         parse_command(input)
     }
 }
 
-fn parse_command<'a>(input: &'a [u8]) -> IParseResult<'a, Command> {
+fn parse_command(input: &[u8]) -> IParseResult<'_, Command> {
     let assignment = preceded(space_before(peek(tag("#"))), parse_assignment);
 
     space_before(alt((
         parse_comment,
         assignment,
-        parse_prefix('G', Command::G, parse_gcode),
-        parse_prefix('M', Command::M, parse_mcode),
-        parse_prefix('O', Command::O, parse_ocode),
-        parse_prefix('S', Command::S, parse_scode),
-        parse_prefix('T', Command::T, parse_tcode),
+        parse_prefix('G', Command::G, Gcode::parse),
+        parse_prefix('M', Command::M, Mcode::parse),
+        parse_prefix('O', Command::O, Ocode::parse),
+        parse_prefix('S', Command::S, Scode::parse),
+        parse_prefix('T', Command::T, Tcode::parse),
     )))(input)
 }
 

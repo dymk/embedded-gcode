@@ -1,11 +1,9 @@
 use crate::{
-    gcode::{
-        expression::{NamedGlobalParam, NamedLocalParam, NumberedParam, Param},
-        GcodeParser,
-    },
-    parser::{err, nom_types::IParseResult, ok, parse_u32, space_before},
+    gcode::expression::{NamedParam, NumberedParam, Param},
+    parser::{err, map_res_into, nom_types::IParseResult, ok, parse_u32, space_before},
+    GcodeParser,
 };
-use alloc::string::{String, ToString as _};
+use alloc::string::String;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
@@ -16,36 +14,40 @@ use nom::{
 };
 
 impl GcodeParser for Param {
-    fn parse<'i>(input: &'i [u8]) -> IParseResult<'i, Self> {
-        parse_param(input)
+    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+        space_before(alt((
+            map_res_into(NamedParam::parse),
+            map_res_into(NumberedParam::parse),
+        )))(input)
     }
 }
 
-fn parse_param<'i>(input: &'i [u8]) -> IParseResult<'i, Param> {
-    space_before(alt((
-        // named parameter, global or local
-        delimited(tag("#<"), parse_named_param, tag(">")),
-        // numbered parameter e.g. `#5`
-        preceded(tag("#"), parse_numbered_param),
-    )))(input)
+/// named parameter, global or local
+impl GcodeParser for NamedParam {
+    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+        map_res(
+            delimited(space_before(tag("#<")), parse_name, space_before(tag(">"))),
+            |name| {
+                ok(if name.starts_with('_') {
+                    NamedParam::named_global(name)
+                } else {
+                    NamedParam::named_local(name)
+                })
+            },
+        )
+        .parse(input)
+    }
 }
 
-fn parse_named_param<'i>(input: &'i [u8]) -> IParseResult<'i, Param> {
-    map_res(parse_name, |name| {
-        ok(if name.starts_with('_') {
-            Param::NamedGlobal(NamedGlobalParam(name.to_string()))
-        } else {
-            Param::NamedLocal(NamedLocalParam(name.to_string()))
-        })
-    })
-    .parse(input)
-}
-
-fn parse_numbered_param<'i>(input: &'i [u8]) -> IParseResult<'i, Param> {
-    map_res(parse_u32(), |value| {
-        ok(Param::Numbered(NumberedParam(value)))
-    })
-    .parse(input)
+/// numbered parameter e.g. `#5`
+impl GcodeParser for NumberedParam {
+    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+        preceded(
+            space_before(tag("#")),
+            map_res(parse_u32(), |value| ok(NumberedParam::numbered(value))),
+        )
+        .parse(input)
+    }
 }
 
 fn parse_name<'i>(input: &'i [u8]) -> IParseResult<'i, String> {

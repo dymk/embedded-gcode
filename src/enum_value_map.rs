@@ -1,9 +1,10 @@
 #[macro_export]
 macro_rules! enum_value_map {
-    (enum $name:ident: $ty:ty { $($variant:ident <=> $value:literal,)* }) => {
+    ($(#[$enum_meta:meta])? enum $name:ident: $ty:ty { $($(#[$variant_meta:meta])? $variant:ident <=> $value:literal,)* }) => {
+        $(#[$enum_meta])?
         #[derive(Debug, PartialEq, Clone, Copy)]
         pub enum $name {
-            $($variant,)*
+            $($(#[$variant_meta])? $variant,)*
         }
 
         impl $name {

@@ -1,7 +1,11 @@
 use crate::{
     bind,
-    gcode::{expression::*, GcodeParser},
-    parser::{err, fold_many0_result, map_res_f1, ok, parse_utils::space_before, IParseResult},
+    gcode::{expression::*, ArithmeticBinOp, BinOp, CmpBinOp, LogicalBinOp},
+    parser::{
+        err, fold_many0_result, map_res_f1, map_res_into, ok, parse_utils::space_before,
+        IParseResult,
+    },
+    GcodeParser,
 };
 use alloc::boxed::Box;
 use nom::{
@@ -15,56 +19,73 @@ use nom::{
     Parser as _,
 };
 
-const OPS_L1: BinOpArray<1> = BinOpArray::from_list([BinOp::Pow]);
-const OPS_L2: BinOpArray<3> = BinOpArray::from_list([BinOp::Mul, BinOp::Div, BinOp::Mod]);
-const OPS_L3: BinOpArray<2> = BinOpArray::from_list([BinOp::Add, BinOp::Sub]);
-const OPS_L4: BinOpArray<6> = BinOpArray::from_list([
-    BinOp::Eq,
-    BinOp::Ne,
-    BinOp::Gt,
-    BinOp::Ge,
-    BinOp::Lt,
-    BinOp::Le,
+const OPS_L1: BinOpArray<1> = BinOpArray::from_list([BinOp::arithmetic(ArithmeticBinOp::Pow)]);
+const OPS_L2: BinOpArray<3> = BinOpArray::from_list([
+    BinOp::arithmetic(ArithmeticBinOp::Mul),
+    BinOp::arithmetic(ArithmeticBinOp::Div),
+    BinOp::arithmetic(ArithmeticBinOp::Mod),
 ]);
-const OPS_L5: BinOpArray<3> = BinOpArray::from_list([BinOp::And, BinOp::Or, BinOp::Xor]);
+const OPS_L3: BinOpArray<2> = BinOpArray::from_list([
+    BinOp::arithmetic(ArithmeticBinOp::Add),
+    BinOp::arithmetic(ArithmeticBinOp::Sub),
+]);
+const OPS_L4: BinOpArray<6> = BinOpArray::from_list([
+    BinOp::cmp(CmpBinOp::Eq),
+    BinOp::cmp(CmpBinOp::Ne),
+    BinOp::cmp(CmpBinOp::Gt),
+    BinOp::cmp(CmpBinOp::Ge),
+    BinOp::cmp(CmpBinOp::Lt),
+    BinOp::cmp(CmpBinOp::Le),
+]);
+const OPS_L5: BinOpArray<3> = BinOpArray::from_list([
+    BinOp::logical(LogicalBinOp::And),
+    BinOp::logical(LogicalBinOp::Or),
+    BinOp::logical(LogicalBinOp::Xor),
+]);
 const PRECEDENCE_LIST: [&dyn BinOpList; 5] = [&OPS_L1, &OPS_L2, &OPS_L3, &OPS_L4, &OPS_L5];
 
 impl GcodeParser for Expression {
-    fn parse<'i>(input: &'i [u8]) -> IParseResult<'i, Self> {
+    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
         parse_expression(input)
     }
 }
 
-fn parse_expression<'i>(input: &'i [u8]) -> IParseResult<'i, Expression> {
+impl GcodeParser for ExpressionAtom {
+    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+        parse_atom(input)
+    }
+}
+
+fn parse_expression(input: &[u8]) -> IParseResult<'_, Expression> {
     parse_expression_generic(&PRECEDENCE_LIST, input)
 }
 
-pub fn parse_atom<'a>(input: &'a [u8]) -> IParseResult<'a, Expression> {
+fn parse_atom(input: &[u8]) -> IParseResult<'_, ExpressionAtom> {
     space_before(alt((
         // function call e.g. `ATAN[..expr..]/[..expr..]`, `COS[..expr..]`
         parse_func_call,
-        map_res_f1(Param::parse, Expression::Param),
+        map_res_f1(Param::parse, ExpressionAtom::Param),
         // number literal e.g. `1.0`
-        map_res_f1(float, Expression::Lit),
+        map_res_f1(float, ExpressionAtom::Lit),
     )))(input)
 }
 
-fn parse_func_call<'a>(input: &'a [u8]) -> IParseResult<'a, Expression> {
-    alt((parse_func_call_atan, parse_func_call_unary)).parse(input)
+fn parse_func_call(input: &[u8]) -> IParseResult<'_, ExpressionAtom> {
+    alt((
+        parse_func_call_atan,
+        parse_func_call_exists,
+        parse_func_call_unary,
+    ))(input)
 }
 
-fn parse_func_call_atan<'i>(input: &'i [u8]) -> IParseResult<'i, Expression> {
+fn parse_func_call_atan(input: &[u8]) -> IParseResult<'_, ExpressionAtom> {
     map_res(
         preceded(
             tag_no_case("ATAN"),
-            separated_pair(
-                parse_expr_in_brackets,
-                space_before(tag("/")),
-                parse_expr_in_brackets,
-            ),
+            separated_pair(parse_group, space_before(tag("/")), parse_group),
         ),
         move |(arg_y, arg_x)| {
-            ok(Expression::FuncCall(FuncCall::atan(
+            ok(ExpressionAtom::FuncCall(FuncCall::atan(
                 Box::new(arg_y),
                 Box::new(arg_x),
             )))
@@ -73,16 +94,36 @@ fn parse_func_call_atan<'i>(input: &'i [u8]) -> IParseResult<'i, Expression> {
     .parse(input)
 }
 
-fn parse_func_call_unary<'a, 'b>(input: &'a [u8]) -> IParseResult<'a, Expression> {
+fn parse_func_call_exists(input: &[u8]) -> IParseResult<'_, ExpressionAtom> {
     map_res(
-        tuple((parse_unary_func_name, parse_expr_in_brackets)),
-        move |(name, arg)| ok(Expression::FuncCall(FuncCall::unary(name, Box::new(arg)))),
+        preceded(
+            tag_no_case("EXISTS"),
+            delimited(
+                space_before(tag("[")),
+                NamedParam::parse,
+                space_before(tag("]")),
+            ),
+        ),
+        |param| ok(ExpressionAtom::FuncCall(FuncCall::exists(param))),
+    )
+    .parse(input)
+}
+
+fn parse_func_call_unary<'b>(input: &[u8]) -> IParseResult<'_, ExpressionAtom> {
+    map_res(
+        tuple((parse_unary_func_name, parse_group)),
+        |(name, arg)| {
+            ok(ExpressionAtom::FuncCall(FuncCall::unary(
+                name,
+                Box::new(arg),
+            )))
+        },
     )
     .parse(input)
 }
 
 // Parse a (case insensitive) unary function name e.g. `ABS`, `COS`
-fn parse_unary_func_name<'a>(input: &'a [u8]) -> IParseResult<'a, UnaryFuncName> {
+fn parse_unary_func_name(input: &[u8]) -> IParseResult<'_, UnaryFuncName> {
     // TODO - parse func name using trie
     map_res(alpha1, |name| {
         for func in UnaryFuncName::ALL.iter() {
@@ -94,7 +135,7 @@ fn parse_unary_func_name<'a>(input: &'a [u8]) -> IParseResult<'a, UnaryFuncName>
     })(input)
 }
 
-fn parse_group<'a>(input: &'a [u8]) -> IParseResult<'a, Expression> {
+fn parse_group(input: &[u8]) -> IParseResult<'_, Expression> {
     delimited(
         space_before(tag("[")),
         parse_expression,
@@ -102,8 +143,8 @@ fn parse_group<'a>(input: &'a [u8]) -> IParseResult<'a, Expression> {
     )(input)
 }
 
-fn parse_factor<'a>(input: &'a [u8]) -> IParseResult<'a, Expression> {
-    space_before(alt((parse_atom, parse_group)))(input)
+fn parse_factor(input: &[u8]) -> IParseResult<'_, Expression> {
+    space_before(alt((map_res_into(parse_atom), parse_group)))(input)
 }
 
 fn parse_expression_generic<'a, 'b>(
@@ -136,14 +177,6 @@ pub fn parse_binop<'a>(ops: &'a dyn BinOpList, input: &'a [u8]) -> IParseResult<
     space_before(alt(ops))(input)
 }
 
-fn parse_expr_in_brackets<'a>(input: &'a [u8]) -> IParseResult<'a, Expression> {
-    delimited(
-        space_before(tag("[")),
-        parse_expression,
-        space_before(tag("]")),
-    )(input)
-}
-
 impl<'a, E> nom::branch::Alt<&'a [u8], BinOp, E> for &dyn BinOpList
 where
     E: nom::error::ParseError<&'a [u8]>,
@@ -171,5 +204,44 @@ where
             input,
             ErrorKind::Alt,
         )))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+    use super::*;
+
+    #[rstest::rstest]
+    #[case("+", Some(ArithmeticBinOp::Add), [ArithmeticBinOp::Add.into(), ArithmeticBinOp::Sub.into()])]
+    #[case(" +", Some(ArithmeticBinOp::Add), [ArithmeticBinOp::Add.into(), ArithmeticBinOp::Sub.into()])]
+    #[case("+", None as Option<BinOp>, [])]
+    #[case("+", None as Option<BinOp>, [ArithmeticBinOp::Sub.into()])]
+    #[case("-", Some(ArithmeticBinOp::Sub), [ArithmeticBinOp::Sub.into()])]
+    #[case("*", Some(ArithmeticBinOp::Mul), [ArithmeticBinOp::Mul.into()])]
+    #[case("* ", Some(ArithmeticBinOp::Mul), [ArithmeticBinOp::Mul.into()])]
+    #[case(" *", Some(ArithmeticBinOp::Mul), [ArithmeticBinOp::Mul.into()])]
+    #[case("**", Some(ArithmeticBinOp::Pow), [ArithmeticBinOp::Pow.into(), ArithmeticBinOp::Mul.into()])]
+    #[case("**", Some(ArithmeticBinOp::Pow), [ArithmeticBinOp::Pow.into(), ArithmeticBinOp::Mul.into()])]
+    #[case("MOD", Some(ArithmeticBinOp::Mod), [ArithmeticBinOp::Mod.into()])]
+    #[case("MOD ", Some(ArithmeticBinOp::Mod), [ArithmeticBinOp::Mod.into()])]
+    #[case(" MOD ", Some(ArithmeticBinOp::Mod), [ArithmeticBinOp::Mod.into()])]
+    #[case("MOD_", None as Option<BinOp>, [ArithmeticBinOp::Mod.into()])]
+    #[case("MODa", None as Option<BinOp>, [ArithmeticBinOp::Mod.into()])]
+    #[case("_MOD", None as Option<BinOp>, [ArithmeticBinOp::Mod.into()])]
+    fn test_parse_binop<const N: usize>(
+        #[case] input: &'static str,
+        #[case] expected: Option<impl Into<BinOp>>,
+        #[case] allowed: [BinOp; N],
+    ) {
+        let list = BinOpArray::from_list(allowed);
+        match (
+            expected.map(|e| e.into()),
+            parse_binop(&list, input.as_bytes()),
+        ) {
+            (Some(expected), Ok((_, parsed))) => assert_eq!(parsed, expected),
+            (None, Err(_)) => {}
+            (a, b) => panic!("unexpected result: expected={:?} actual={:?}", a, b),
+        };
     }
 }
