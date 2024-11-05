@@ -24,6 +24,12 @@ pub enum Param<'b> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum NamedParam<'b> {
+    NamedLocal(NamedLocalParam<'b>),
+    NamedGlobal(NamedGlobalParam<'b>),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct NumberedParam(pub u32);
 #[derive(Debug, PartialEq, Clone)]
 pub struct NamedLocalParam<'b>(pub &'b str);
@@ -94,11 +100,13 @@ enum_value_map!(enum UnaryFuncName: &'static [u8] {
     Sin <=> b"SIN",
     Sqrt <=> b"SQRT",
     Tan <=> b"TAN",
-    Exists <=> b"EXISTS",
 });
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum FuncCall<'b> {
+    Exists {
+        param: NamedParam<'b>,
+    },
     Atan {
         arg_y: &'b Expression<'b>,
         arg_x: &'b Expression<'b>,

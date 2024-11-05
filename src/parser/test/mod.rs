@@ -1,3 +1,5 @@
+extern crate std;
+
 #[macro_use]
 mod macro_test_parser;
 mod test_number_code;
@@ -7,8 +9,6 @@ mod test_parse_expression;
 mod test_parse_param;
 
 use crate::{gcode::expression::*, ParserAllocator};
-
-extern crate std;
 use std::{collections::HashSet, prelude::v1::*};
 
 pub struct ExprBuilder<'b> {

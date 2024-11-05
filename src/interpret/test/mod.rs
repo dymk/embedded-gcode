@@ -10,9 +10,9 @@ use core::error::Error;
 
 #[test]
 fn test_interpret_context() -> Result<(), Box<dyn Error>> {
-    let mut interpreter = GCodeInterpreter::default();
     let mut heap = bump_into::space_uninit!(1024);
     let alloc = ParserAllocator::new(&mut heap);
+    let mut interpreter = GCodeInterpreter::default();
 
     let mut model_state = ModelState::default();
     assert_eq!(model_state.selected_unit, ModelStateUnit::Mm);

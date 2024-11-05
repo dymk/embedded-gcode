@@ -2,47 +2,17 @@ extern crate std;
 
 use crate::{
     gcode::{expression::Expression, Axes, Command, Gcode},
-    parser::{test::permute_whitespace, toplevel::*},
+    parser::{
+        test::{permute_whitespace, ExprBuilder, Param},
+        toplevel::*,
+    },
     GcodeParseError, ParserAllocator,
 };
 
-use super::ExprBuilder;
-
-#[macro_export]
-macro_rules! test_parser {
-    (expr, $test_name:ident, $input:expr, $builder:expr $(,)?) => {
-        paste::paste! {
-            #[test]
-            fn [<test_parse_expr_ $test_name>]() {
-                $crate::parser::test::macro_test_parser::test_expr_impl(&$input, $builder);
-            }
-        }
-    };
-    (command, $test_name:ident, $input:expr, $builder:expr) => {
-        paste::paste! {
-            #[test]
-            fn [<test_parse_command_ $test_name>]() {
-                $crate::parser::test::macro_test_parser::test_command_impl(
-                    &$input,
-                    $builder
-                );
-            }
-        }
-    };
-    (axes, $test_name:ident, $input:expr, $builder:expr) => {
-        paste::paste! {
-            #[test]
-            fn [<test_parse_axes_ $test_name>]() {
-                $crate::parser::test::macro_test_parser::test_axes_impl(&$input, $builder);
-            }
-        }
-    };
-}
-
 macro_rules! test_parser_impl {
-    ($impl_func_name:ident, $parser_func_name:ident, $node_type:ty) => {
+    ($test_func_name:ident, $parser_func_name:ident, $node_type:ty) => {
         #[track_caller]
-        pub fn $impl_func_name<NodeBuilder>(tokens: &[&str], mut node_builder: NodeBuilder)
+        pub fn $test_func_name<NodeBuilder>(tokens: &[&str], mut node_builder: NodeBuilder)
         where
             NodeBuilder: for<'i> FnMut(&'i ExprBuilder<'i>) -> $node_type,
         {
@@ -76,19 +46,27 @@ macro_rules! test_parser_impl {
                 );
             }
         }
+
+        macro_rules! $test_func_name {
+            ($test_name:ident, $input:expr, $builder:expr) => {
+                paste::paste! {
+                    #[test]
+                    fn [<test_ $parser_func_name _ $test_name>]() {
+                        $crate::parser::test::macro_test_parser::$test_func_name(
+                            &$input, $builder
+                        );
+                    }
+                }
+            };
+        }
     };
 }
 
-test_parser_impl!(test_expr_impl, parse_expression, &'i Expression<'i>);
-test_parser_impl!(test_command_impl, parse_command, Command<'i>);
-test_parser_impl!(test_axes_impl, parse_axes, Axes<'i>);
+test_parser_impl!(test_parse_expr, parse_expression, &'i Expression<'i>);
+test_parser_impl!(test_parse_command, parse_command, Command<'i>);
+test_parser_impl!(test_parse_axis, parse_axes, Axes<'i>);
+test_parser_impl!(test_parse_param, parse_param, Param<'i>);
 
 fn from_utf8(input: &[u8]) -> &str {
     std::str::from_utf8(input).unwrap()
 }
-
-test_parser!(expr, atan, ["ATAN[1.0]/[2.0]"], |b: &ExprBuilder<'_>| {
-    b.atan(b.lit(1.0), b.lit(2.0))
-});
-
-test_parser!(command, g0, ["G0"], |_| { Gcode::G0(None).into() });

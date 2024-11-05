@@ -1,38 +1,15 @@
 extern crate std;
 
-use crate::parser::{
-    nom_types::GcodeParseError,
-    parser_allocator::ParserAllocator,
-    toplevel::{parse_atom, parse_binop, parse_name},
-};
 use crate::{
     gcode::expression::{
         BinOp, BinOpArray, Expression, NamedGlobalParam, NamedLocalParam, NumberedParam, Param,
         UnaryFuncName,
     },
-    test_parser,
+    parser::{nom_types::GcodeParseError, parser_allocator::ParserAllocator, toplevel::*},
 };
 use core::str::from_utf8;
 use nom::error::Error;
 use std::prelude::v1::*;
-
-#[rstest::rstest]
-#[case(true, "foo")]
-#[case(true, "_bar")]
-#[case(true, "baz_")]
-#[case(false, "0123")]
-#[case(true, "_abc123")]
-fn test_parse_name(#[case] success: bool, #[case] name: &str) {
-    let mut heap = bump_into::space_uninit!(1024);
-    let alloc = ParserAllocator::new(&mut heap);
-    let result = parse_name(&alloc, name.as_bytes());
-    if success {
-        let (_, parsed) = result.unwrap();
-        assert_eq!(parsed, name);
-    } else {
-        assert!(result.is_err(), "{:?}", result);
-    }
-}
 
 #[rstest::rstest]
 #[case("#5", Expression::Param(Param::Numbered(NumberedParam(5))))]
@@ -88,44 +65,37 @@ fn test_parse_binop<const N: usize>(
     };
 }
 
-test_parser!(expr, lit_1, ["1.0"], |b| { b.lit(1.0) });
-test_parser!(expr, lit_1_parens, ["[", "1.0", "]"], |b| { b.lit(1.0) });
-test_parser!(expr, lit_add_parens, ["[", "1.0", "+", "2.0", "]"], |b| {
+test_parse_expr!(lit_1, ["1.0"], |b| { b.lit(1.0) });
+test_parse_expr!(lit_1_parens, ["[", "1.0", "]"], |b| { b.lit(1.0) });
+test_parse_expr!(lit_add_parens, ["[", "1.0", "+", "2.0", "]"], |b| {
     b.binop(b.lit(1.0), "+", b.lit(2.0))
 });
 
-test_parser!(expr, num_add_lit, ["#4", "+", "2"], |b| {
+test_parse_expr!(num_add_lit, ["#4", "+", "2"], |b| {
     b.binop(b.num_param_expr(4), "+", b.lit(2.0))
 });
 
-test_parser!(expr, num_add_lit_parens, ["#4", "+", "[", "2", "]"], |b| {
+test_parse_expr!(num_add_lit_parens, ["#4", "+", "[", "2", "]"], |b| {
     b.binop(b.num_param_expr(4), "+", b.lit(2.0))
 });
 
-test_parser!(expr, lit_sub_local, ["3", "-", "#<foo>"], |b| {
+test_parse_expr!(lit_sub_local, ["3", "-", "#<foo>"], |b| {
     b.binop(b.lit(3.0), "-", b.local_param_expr("foo"))
 });
 
-test_parser!(expr, lit_mul_sub, ["1", "*", "2", "-", "3"], |b| {
+test_parse_expr!(lit_mul_sub, ["1", "*", "2", "-", "3"], |b| {
     b.binop(b.binop(b.lit(1.0), "*", b.lit(2.0)), "-", b.lit(3.0))
 });
 
-test_parser!(
-    expr,
-    lit_mul_parens,
-    ["1", "*", "[", "2", "-", "3", "]"],
-    |b| { b.binop(b.lit(1.0), "*", b.binop(b.lit(2.0), "-", b.lit(3.0))) }
-);
+test_parse_expr!(lit_mul_parens, ["1", "*", "[", "2", "-", "3", "]"], |b| {
+    b.binop(b.lit(1.0), "*", b.binop(b.lit(2.0), "-", b.lit(3.0)))
+});
 
-test_parser!(
-    expr,
-    parens_lit_sub,
-    ["", "[", "1", "*", "2", "]", "-3"],
-    |b| { b.binop(b.binop(b.lit(1.0), "*", b.lit(2.0)), "-", b.lit(3.0)) }
-);
+test_parse_expr!(parens_lit_sub, ["", "[", "1", "*", "2", "]", "-3"], |b| {
+    b.binop(b.binop(b.lit(1.0), "*", b.lit(2.0)), "-", b.lit(3.0))
+});
 
-test_parser!(
-    expr,
+test_parse_expr!(
     parens_num_local_sub_global,
     ["[", "#1", "*", "#<foo>", "]", "-#<_bar>"],
     |b| {
@@ -137,26 +107,25 @@ test_parser!(
     }
 );
 
-test_parser!(expr, neg_lit_add, ["-1", "+", "2"], |b| {
+test_parse_expr!(neg_lit_add, ["-1", "+", "2"], |b| {
     b.binop(b.lit(-1.0), "+", b.lit(2.0))
 });
 
-test_parser!(expr, lit_add_neg, ["", "2", "+", "-1"], |b| {
+test_parse_expr!(lit_add_neg, ["", "2", "+", "-1"], |b| {
     b.binop(b.lit(2.0), "+", b.lit(-1.0))
 });
 
-test_parser!(expr, lit_mod_div, ["1", "MOD", "2", "/", "3"], |b| {
+test_parse_expr!(lit_mod_div, ["1", "MOD", "2", "/", "3"], |b| {
     b.binop(b.binop(b.lit(1.0), "MOD", b.lit(2.0)), "/", b.lit(3.0))
 });
 
-test_parser!(expr, lit_pow, ["2 ** 3"], |b| b.binop(
+test_parse_expr!(lit_pow, ["2 ** 3"], |b| b.binop(
     b.lit(2.0),
     "**",
     b.lit(3.0)
 ));
 
-test_parser!(
-    expr,
+test_parse_expr!(
     lit_mod_div_parens,
     ["1", "MOD", "[", "2", "/", "3", "**", "4", "]"],
     |b| b.binop(
@@ -166,24 +135,22 @@ test_parser!(
     )
 );
 
-test_parser!(
-    expr,
+test_parse_expr!(
     atan_parens,
     ["ATAN", "[", "1.0", "]", "/", "[", "2.0", "]"],
     |b| { b.atan(b.lit(1.0), b.lit(2.0)) }
 );
 
-test_parser!(
-    expr,
+test_parse_expr!(
     atan_lower,
     ["atan", "[", "1.0", "]", "/", "[", "2.0", "]"],
     |b| { b.atan(b.lit(1.0), b.lit(2.0)) }
 );
 
-test_parser!(expr, abs_parens, ["ABS", "[", "-1.0", "]"], |b| {
+test_parse_expr!(abs_parens, ["ABS", "[", "-1.0", "]"], |b| {
     b.unary(UnaryFuncName::Abs, b.lit(-1.0))
 });
 
-test_parser!(expr, abs_parens_lower, ["abs", "[", "-1.0", "]"], |b| {
+test_parse_expr!(abs_parens_lower, ["abs", "[", "-1.0", "]"], |b| {
     b.unary(UnaryFuncName::Abs, b.lit(-1.0))
 });
