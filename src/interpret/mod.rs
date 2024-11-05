@@ -1,7 +1,4 @@
-use alloc::string::ToString;
-use hashbrown::hash_map::Entry::{Occupied, Vacant};
 use model_state::ModelState;
-use nom::number;
 
 use crate::gcode::{
     expression::{BinOp, Expression, FuncCall, NamedParam, Param, UnaryFuncName},
@@ -57,7 +54,7 @@ impl<'a> GCodeInterpreter<'a> {
         Ok(())
     }
 
-    fn get_param_mut<'p>(&mut self, _: &'p Param) -> Option<&mut f32> {
+    fn get_param_mut(&mut self, _: &Param) -> Option<&mut f32> {
         todo!()
     }
 

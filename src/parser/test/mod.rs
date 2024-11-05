@@ -3,7 +3,7 @@ extern crate std;
 #[macro_use]
 mod macro_test_parser;
 mod test_number_code;
-mod test_parse_axis;
+mod test_parse_axes;
 mod test_parse_command;
 mod test_parse_expression;
 mod test_parse_param;
@@ -22,45 +22,36 @@ impl<'b> ExprBuilder<'b> {
 
     pub fn binop(
         &'b self,
-        left: &'b Expression,
+        left: Expression<'b>,
         op: &'static str,
-        right: &'b Expression,
-    ) -> &'b Expression<'b> {
-        self.alloc
-            .alloc(Expression::BinOpExpr {
-                op: BinOp::from_value(op.as_bytes()).unwrap(),
-                left,
-                right,
-            })
-            .unwrap()
+        right: Expression<'b>,
+    ) -> Expression<'b> {
+        Expression::BinOpExpr {
+            op: BinOp::from_value(op.as_bytes()).unwrap(),
+            left: self.alloc.alloc(left).unwrap(),
+            right: self.alloc.alloc(right).unwrap(),
+        }
     }
-    pub fn lit(&'b self, val: f32) -> &'b Expression<'b> {
-        self.alloc.alloc(Expression::Lit(val)).unwrap()
+    pub fn lit(&'b self, val: f32) -> Expression<'b> {
+        Expression::Lit(val)
     }
-    pub fn num_param_expr(&'b self, val: u32) -> &'b Expression<'b> {
-        self.alloc
-            .alloc(Expression::Param(Param::Numbered(NumberedParam(val))))
-            .unwrap()
+    pub fn num_param_expr(&'b self, val: u32) -> Expression<'b> {
+        Expression::Param(Param::Numbered(NumberedParam(val)))
     }
-    pub fn local_param_expr(&'b self, val: &'b str) -> &'b Expression<'b> {
-        self.alloc
-            .alloc(Expression::Param(Param::NamedLocal(NamedLocalParam(val))))
-            .unwrap()
+    pub fn local_param_expr(&'b self, val: &'b str) -> Expression<'b> {
+        Expression::Param(Param::NamedLocal(NamedLocalParam(val)))
     }
-    pub fn global_param_expr(&'b self, val: &'b str) -> &'b Expression<'b> {
-        self.alloc
-            .alloc(Expression::Param(Param::NamedGlobal(NamedGlobalParam(val))))
-            .unwrap()
+    pub fn global_param_expr(&'b self, val: &'b str) -> Expression<'b> {
+        Expression::Param(Param::NamedGlobal(NamedGlobalParam(val)))
     }
-    pub fn atan(&'b self, arg_y: &'b Expression, arg_x: &'b Expression) -> &'b Expression<'b> {
-        self.alloc
-            .alloc(Expression::FuncCall(FuncCall::atan(arg_y, arg_x)))
-            .unwrap()
+    pub fn atan(&'b self, arg_y: Expression<'b>, arg_x: Expression<'b>) -> Expression<'b> {
+        Expression::FuncCall(FuncCall::atan(
+            self.alloc.alloc(arg_y).unwrap(),
+            self.alloc.alloc(arg_x).unwrap(),
+        ))
     }
-    pub fn unary(&'b self, name: UnaryFuncName, arg: &'b Expression) -> &'b Expression<'b> {
-        self.alloc
-            .alloc(Expression::FuncCall(FuncCall::unary(name, arg)))
-            .unwrap()
+    pub fn unary(&'b self, name: UnaryFuncName, arg: Expression<'b>) -> Expression<'b> {
+        Expression::FuncCall(FuncCall::unary(name, self.alloc.alloc(arg).unwrap()))
     }
     pub fn num_param(&'b self, val: u32) -> &'b Param<'b> {
         self.alloc

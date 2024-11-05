@@ -1,6 +1,9 @@
 use crate::{
     bind,
-    gcode::expression::{NamedGlobalParam, NamedLocalParam, NumberedParam, Param},
+    gcode::{
+        expression::{NamedGlobalParam, NamedLocalParam, NumberedParam, Param},
+        GcodeParser,
+    },
     parser::{err, nom_types::IParseResult, ok, parse_u32, space_before},
     ParserAllocator,
 };
@@ -14,7 +17,13 @@ use nom::{
     Parser as _,
 };
 
-pub fn parse_param<'a, 'b>(
+impl<'a, 'b> GcodeParser<'a, 'b> for Param<'b> {
+    fn parse(alloc: &'b ParserAllocator<'b>, input: &'a [u8]) -> IParseResult<'a, Self> {
+        parse_param(alloc, input)
+    }
+}
+
+fn parse_param<'a, 'b>(
     alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Param<'b>> {

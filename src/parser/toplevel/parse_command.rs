@@ -1,6 +1,6 @@
 use crate::{
     bind,
-    gcode::Command,
+    gcode::{Command, GcodeParser},
     parser::{nom_types::IParseResult, ok, parse_utils::space_before, toplevel::*},
     ParserAllocator,
 };
@@ -11,7 +11,13 @@ use nom::{
     sequence::preceded,
 };
 
-pub fn parse_command<'a, 'b>(
+impl<'a, 'b> GcodeParser<'a, 'b> for Command<'b> {
+    fn parse(alloc: &'b ParserAllocator<'b>, input: &'a [u8]) -> IParseResult<'a, Self> {
+        parse_command(alloc, input)
+    }
+}
+
+fn parse_command<'a, 'b>(
     alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Command<'b>> {

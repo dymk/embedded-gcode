@@ -1,27 +1,25 @@
 extern crate std;
 
 use crate::{
-    gcode::{expression::Expression, Axes, Command, Gcode},
-    parser::{
-        test::{permute_whitespace, ExprBuilder, Param},
-        toplevel::*,
-    },
+    gcode::{expression::Expression, Axes, Command},
+    parser::test::{permute_whitespace, ExprBuilder, Param},
     GcodeParseError, ParserAllocator,
 };
 
 macro_rules! test_parser_impl {
-    ($test_func_name:ident, $parser_func_name:ident, $node_type:ty) => {
+    ($test_func_name:ident, $node_type:ident) => {
         #[track_caller]
-        pub fn $test_func_name<NodeBuilder>(tokens: &[&str], mut node_builder: NodeBuilder)
-        where
-            NodeBuilder: for<'i> FnMut(&'i ExprBuilder<'i>) -> $node_type,
-        {
+        pub fn $test_func_name(
+            tokens: &[&str],
+            node_builder: impl for<'i> Fn(&'i ExprBuilder<'i>) -> $node_type<'i>,
+        ) {
             for input in permute_whitespace(tokens) {
                 let mut heap = bump_into::space_uninit!(1024);
                 let alloc = ParserAllocator::new(&mut heap);
                 let expr_builder = ExprBuilder::new(&alloc);
                 let expected = node_builder(&expr_builder);
-                let (rest, actual) = match $parser_func_name(&alloc, input.as_bytes()) {
+                use crate::gcode::GcodeParser;
+                let (rest, actual) = match $node_type::parse(&alloc, input.as_bytes()) {
                     Ok((rest, actual)) => (rest, actual),
                     Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
                         panic!(
@@ -51,7 +49,7 @@ macro_rules! test_parser_impl {
             ($test_name:ident, $input:expr, $builder:expr) => {
                 paste::paste! {
                     #[test]
-                    fn [<test_ $parser_func_name _ $test_name>]() {
+                    fn [<$test_func_name _ $test_name>]() {
                         $crate::parser::test::macro_test_parser::$test_func_name(
                             &$input, $builder
                         );
@@ -62,10 +60,10 @@ macro_rules! test_parser_impl {
     };
 }
 
-test_parser_impl!(test_parse_expr, parse_expression, &'i Expression<'i>);
-test_parser_impl!(test_parse_command, parse_command, Command<'i>);
-test_parser_impl!(test_parse_axis, parse_axes, Axes<'i>);
-test_parser_impl!(test_parse_param, parse_param, Param<'i>);
+test_parser_impl!(test_parse_axes, Axes);
+test_parser_impl!(test_parse_param, Param);
+test_parser_impl!(test_parse_command, Command);
+test_parser_impl!(test_parse_expr, Expression);
 
 fn from_utf8(input: &[u8]) -> &str {
     std::str::from_utf8(input).unwrap()

@@ -1,5 +1,5 @@
+use crate::gcode::{Axes, GcodeParser as _};
 use crate::parser::parse_utils::number_code;
-use crate::parser::toplevel::parse_axes;
 use crate::parser::{map_res_f1, ok};
 use crate::{bind, gcode::Gcode, parser::nom_types::IParseResult, ParserAllocator};
 use nom::{
@@ -21,11 +21,11 @@ pub fn parse_gcode<'a, 'b>(
 
     alt((
         map_res_f1(
-            preceded(number_code("0"), opt(bind!(alloc, parse_axes))),
+            preceded(number_code("0"), opt(bind!(alloc, Axes::parse))),
             Gcode::G0,
         ),
         map_res_f1(
-            preceded(number_code("1"), bind!(alloc, parse_axes)),
+            preceded(number_code("1"), bind!(alloc, Axes::parse)),
             Gcode::G1,
         ),
         simple_gcode("20", Gcode::G20),

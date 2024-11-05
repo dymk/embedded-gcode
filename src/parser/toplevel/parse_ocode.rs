@@ -1,11 +1,10 @@
 use crate::{
-    gcode::{Ocode, OcodeStatement},
+    gcode::{expression::Expression, GcodeParser as _, Ocode, OcodeStatement},
     parser::{
         bind, map_res_f1,
         nom_types::IParseResult,
         ok,
         parse_utils::{parse_u32, space_before},
-        toplevel::*,
     },
     ParserAllocator,
 };
@@ -28,7 +27,7 @@ pub fn parse_ocode<'a, 'b>(
                 map_res(tag_no_case("endsub"), |_| ok(OcodeStatement::EndSub)),
                 preceded(
                     tag_no_case("if"),
-                    map_res_f1(bind!(alloc, parse_expression), OcodeStatement::If),
+                    map_res_f1(bind!(alloc, Expression::parse), OcodeStatement::If),
                 ),
                 map_res(tag_no_case("endif"), |_| ok(OcodeStatement::EndIf)),
             ))),

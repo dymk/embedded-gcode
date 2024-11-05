@@ -1,7 +1,14 @@
 pub mod expression;
 use expression::{Expression, Param};
 
-use crate::NUM_AXES;
+use crate::{parser::IParseResult, ParserAllocator, NUM_AXES};
+
+pub trait GcodeParser<'a, 'b>
+where
+    Self: Sized,
+{
+    fn parse(alloc: &'b ParserAllocator<'b>, input: &'a [u8]) -> IParseResult<'a, Self>;
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Command<'b> {

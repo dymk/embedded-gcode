@@ -1,10 +1,7 @@
 use crate::{
     bind,
-    gcode::expression::*,
-    parser::{
-        err, fold_many0_result, map_res_f1, ok, parse_utils::space_before, toplevel::*,
-        IParseResult,
-    },
+    gcode::{expression::*, GcodeParser},
+    parser::{err, fold_many0_result, map_res_f1, ok, parse_utils::space_before, IParseResult},
     ParserAllocator,
 };
 use nom::{
@@ -31,7 +28,13 @@ const OPS_L4: BinOpArray<6> = BinOpArray::from_list([
 const OPS_L5: BinOpArray<3> = BinOpArray::from_list([BinOp::And, BinOp::Or, BinOp::Xor]);
 const PRECEDENCE_LIST: [&dyn BinOpList; 5] = [&OPS_L1, &OPS_L2, &OPS_L3, &OPS_L4, &OPS_L5];
 
-pub fn parse_expression<'a, 'b>(
+impl<'a, 'b> GcodeParser<'a, 'b> for Expression<'b> {
+    fn parse(alloc: &'b ParserAllocator<'b>, input: &'a [u8]) -> IParseResult<'a, Self> {
+        parse_expression(alloc, input)
+    }
+}
+
+fn parse_expression<'a, 'b>(
     alloc: &'b ParserAllocator<'b>,
     input: &'a [u8],
 ) -> IParseResult<'a, Expression<'b>> {
@@ -45,7 +48,7 @@ pub fn parse_atom<'a, 'b>(
     space_before(alt((
         // function call e.g. `ATAN[..expr..]/[..expr..]`, `COS[..expr..]`
         bind!(alloc, parse_func_call),
-        map_res_f1(bind!(alloc, parse_param), Expression::Param),
+        map_res_f1(bind!(alloc, Param::parse), Expression::Param),
         // number literal e.g. `1.0`
         map_res_f1(float, Expression::Lit),
     )))(input)

@@ -10,5 +10,5 @@ mod test;
 use crate::bind;
 pub use fold_many0_result::fold_many0_result;
 pub use nom_types::GcodeParseError;
-use nom_types::IParseResult;
+pub use nom_types::IParseResult;
 pub use parse_utils::*;

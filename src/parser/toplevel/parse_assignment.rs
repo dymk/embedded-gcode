@@ -2,12 +2,13 @@ use nom::{bytes::complete::tag, combinator::map_res, sequence::tuple};
 
 use crate::{
     bind,
-    gcode::Command,
+    gcode::{
+        expression::{Expression, Param},
+        Command, GcodeParser as _,
+    },
     parser::{nom_types::IParseResult, ok, space_before},
     ParserAllocator,
 };
-
-use super::{parse_expression, parse_param};
 
 pub fn parse_assignment<'a, 'b>(
     alloc: &'b ParserAllocator<'b>,
@@ -15,9 +16,9 @@ pub fn parse_assignment<'a, 'b>(
 ) -> IParseResult<'a, Command<'b>> {
     map_res(
         tuple((
-            bind!(alloc, parse_param),
+            bind!(alloc, Param::parse),
             space_before(tag("=")),
-            bind!(alloc, parse_expression),
+            bind!(alloc, Expression::parse),
         )),
         |(param, _, expr)| ok(Command::Assign(param, expr)),
     )(input)
