@@ -13,11 +13,12 @@ use nom::{
     bytes::complete::tag_no_case,
     combinator::map_res,
     sequence::{preceded, tuple},
+    Parser as _,
 };
 
 impl GcodeParser for Ocode {
     fn parse(input: &[u8]) -> IParseResult<'_, Self> {
-        parse_ocode(input)
+        preceded(space_before(tag_no_case("O")), parse_ocode).parse(input)
     }
 }
 

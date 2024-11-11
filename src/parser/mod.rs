@@ -1,5 +1,6 @@
 mod fold_many0_result;
 mod nom_types;
+pub mod parse_code_and_number;
 mod parse_utils;
 pub mod parser_allocator;
 pub mod toplevel;

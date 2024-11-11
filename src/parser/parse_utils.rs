@@ -1,14 +1,14 @@
 use crate::parser::nom_types::IParseResult;
+use crate::GcodeParseError;
 use core::str::from_utf8;
 use nom::{
     bytes::complete::tag,
-    character::complete::{digit1, space0},
+    character::complete::digit1,
+    character::complete::space0,
     combinator::{map_res, not},
     sequence::{preceded, terminated},
     Parser,
 };
-
-use crate::GcodeParseError;
 
 pub fn parse_u32<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, u32> {
     map_res(digit1, |bytes| {
@@ -42,7 +42,7 @@ pub fn number_code<'a>(number: &'static str) -> impl FnMut(&'a [u8]) -> IParseRe
 
 #[inline(always)]
 pub fn space_before<'a, T>(
-    parser: impl FnMut(&'a [u8]) -> IParseResult<'a, T>,
+    parser: impl Parser<&'a [u8], T, GcodeParseError<'a>>,
 ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, T> {
     preceded(space0, parser)
 }

@@ -18,6 +18,10 @@ test_parse_command!(g0_x_expr_binop, ["G0", "X", "[", "1", "+", "2", "]"], |b| {
     ))
 });
 
+test_parse_command!(g1, ["G1", "X1"], |b| {
+    Gcode::G1(Axes::new().set(Axis::X, b.lit(1.0)))
+});
+
 test_parse_command!(g20, ["G20"], |_| Gcode::G20);
 test_parse_command!(g21, ["G21"], |_| Gcode::G21);
 test_parse_command!(g53, ["G53"], |_| Gcode::G53);

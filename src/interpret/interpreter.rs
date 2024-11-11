@@ -13,13 +13,21 @@ pub struct Interpreter {
     model_state: ModelState,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum InterpretError {
     ParamNotFound(Param),
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum InterpretValue {
+    EvalExpr(f32),
+    Other,
+}
+
+type InterpretResult = Result<InterpretValue, InterpretError>;
+
 impl Interpreter {
-    pub fn interpret(&mut self, command: Command) -> Result<(), InterpretError> {
+    pub fn interpret(&mut self, command: Command) -> InterpretResult {
         match command {
             Command::Comment(_) => todo!(),
             Command::Assign(to, from) => self.interpret_assign(to, from),
@@ -31,7 +39,7 @@ impl Interpreter {
         }
     }
 
-    fn interpret_gcode(&mut self, gcode: Gcode) -> Result<(), InterpretError> {
+    fn interpret_gcode(&mut self, gcode: Gcode) -> InterpretResult {
         match gcode {
             Gcode::G20 => {
                 self.model_state.selected_unit = ModelStateUnit::In;
@@ -41,33 +49,64 @@ impl Interpreter {
             }
             _ => todo!("{:?}", gcode),
         }
-        Ok(())
+        Ok(InterpretValue::Other)
     }
 
     pub fn get_model_state(&self) -> &ModelState {
         &self.model_state
     }
 
-    fn interpret_assign(&mut self, to: Param, from: Expression) -> Result<(), InterpretError> {
+    fn interpret_assign(&mut self, to: Param, from: Expression) -> InterpretResult {
         let from = self.eval_expr(&from);
         let to = self
-            .get_param_mut(&to)
+            .get_param_or_initialize_mut(&to)
             .ok_or(InterpretError::ParamNotFound(to))?;
         *to = from;
-        Ok(())
+        Ok(InterpretValue::EvalExpr(from))
     }
 
-    fn get_param_mut(&mut self, _: &Param) -> Option<&mut f32> {
-        todo!()
+    fn get_param_or_initialize_mut(&mut self, param: &Param) -> Option<&mut f32> {
+        match param {
+            Param::Numbered(numbered_param) => Some(
+                self.local_vars_numbered
+                    .entry(*numbered_param)
+                    .or_insert(0.0),
+            ),
+            Param::NamedLocal(named_local_param) => {
+                if self.local_vars_named.contains_key(named_local_param) {
+                    self.local_vars_named.get_mut(named_local_param)
+                } else {
+                    self.local_vars_named.insert(named_local_param.clone(), 0.0);
+                    self.local_vars_named.get_mut(named_local_param)
+                }
+            }
+            Param::NamedGlobal(named_global_param) => {
+                if self.global_vars.contains_key(named_global_param) {
+                    self.global_vars.get_mut(named_global_param)
+                } else {
+                    self.global_vars.insert(named_global_param.clone(), 0.0);
+                    self.global_vars.get_mut(named_global_param)
+                }
+            }
+        }
     }
 
     fn get_param(&self, param: &Param) -> Option<f32> {
         match param {
-            Param::Numbered(numbered_param) => self.local_vars_numbered.get(numbered_param),
-            Param::NamedLocal(named_local_param) => self.local_vars_named.get(named_local_param),
-            Param::NamedGlobal(named_global_param) => self.global_vars.get(named_global_param),
+            Param::Numbered(numbered_param) => self.get_numbered_param(*numbered_param),
+            Param::NamedLocal(named_local_param) => self.get_local_param(named_local_param),
+            Param::NamedGlobal(named_global_param) => self.get_global_param(named_global_param),
         }
-        .copied()
+    }
+
+    pub fn get_local_param(&self, name: &str) -> Option<f32> {
+        self.local_vars_named.get(name).copied()
+    }
+    pub fn get_global_param(&self, name: &str) -> Option<f32> {
+        self.global_vars.get(name).copied()
+    }
+    pub fn get_numbered_param(&self, name: u32) -> Option<f32> {
+        self.local_vars_numbered.get(&name).copied()
     }
 
     fn eval_expr(&self, expression: &Expression) -> f32 {
@@ -85,7 +124,7 @@ impl Interpreter {
             BinOp::Logical(op) => {
                 let left = left != 0.;
                 let right = self.eval_expr(right) != 0.;
-                cast_f32(match op {
+                bool_to_float(match op {
                     LogicalBinOp::And => left && right,
                     LogicalBinOp::Or => left || right,
                     LogicalBinOp::Xor => left ^ right,
@@ -93,7 +132,7 @@ impl Interpreter {
             }
             BinOp::Cmp(op) => {
                 let right = self.eval_expr(right);
-                cast_f32(match op {
+                bool_to_float(match op {
                     CmpBinOp::Eq => left == right,
                     CmpBinOp::Ne => left != right,
                     CmpBinOp::Gt => left > right,
@@ -153,7 +192,7 @@ impl Interpreter {
     }
 
     fn eval_exists_func_call(&self, param: &NamedParam) -> f32 {
-        cast_f32(match param {
+        bool_to_float(match param {
             NamedParam::NamedLocal(named_local_param) => {
                 self.local_vars_named.contains_key(named_local_param)
             }
@@ -165,7 +204,7 @@ impl Interpreter {
 }
 
 #[inline(always)]
-fn cast_f32(expr: bool) -> f32 {
+fn bool_to_float(expr: bool) -> f32 {
     if expr {
         1.0
     } else {

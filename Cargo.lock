@@ -200,6 +200,7 @@ dependencies = [
  "paste",
  "rstest",
  "subenum",
+ "variadics_please",
 ]
 
 [[package]]
@@ -474,6 +475,16 @@ name = "unicode-ident"
 version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
+
+[[package]]
+name = "variadics_please"
+version = "1.0.0"
+source = "git+https://github.com/bevyengine/variadics_please.git?rev=ead8d193db2bd9ca1e06e3ae832f49ead430722e#ead8d193db2bd9ca1e06e3ae832f49ead430722e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.85",
+]
 
 [[package]]
 name = "winnow"

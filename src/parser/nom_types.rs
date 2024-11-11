@@ -2,8 +2,10 @@ use alloc::string::FromUtf8Error;
 use core::str::Utf8Error;
 use nom::{
     error::{Error as NomError, ErrorKind as NomErrorKind, FromExternalError},
-    IResult as NomIResult,
+    IResult, Parser,
 };
+
+use crate::gcode::ParseNode;
 
 #[derive(Debug, PartialEq)]
 pub enum GcodeParseError<'a> {
@@ -46,4 +48,19 @@ impl<'a> nom::error::ParseError<&'a [u8]> for GcodeParseError<'a> {
     }
 }
 
-pub type IParseResult<'a, O> = NomIResult<&'a [u8], O, GcodeParseError<'a>>;
+pub type IParseResult<'a, O> = IResult<&'a [u8], O, GcodeParseError<'a>>;
+
+pub trait IntoParser<'a>
+where
+    Self: Sized,
+{
+    fn into_parser(self) -> impl Parser<&'a [u8], Self, GcodeParseError<'a>>;
+}
+impl<'a, O> IntoParser<'a> for O
+where
+    O: ParseNode,
+{
+    fn into_parser(self) -> impl Parser<&'a [u8], Self, GcodeParseError<'a>> {
+        move |input| Ok((input, self.clone()))
+    }
+}

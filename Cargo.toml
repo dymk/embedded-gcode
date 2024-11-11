@@ -12,6 +12,7 @@ nom = { version = "7.1.3", features = [], default-features = false }
 paste = "1.0.15"
 subenum = { version = "1.1.2", default-features = false }
 micromath = "2.1.0"
+variadics_please = { git = "https://github.com/bevyengine/variadics_please.git", rev = "ead8d193db2bd9ca1e06e3ae832f49ead430722e" }
 
 [dev-dependencies]
 futures-lite = "2.3.0"

@@ -5,6 +5,14 @@ use alloc::string::String;
 pub use binop::*;
 use expression::{Expression, Param};
 
+pub trait ParseNode: Clone {}
+macro_rules! impl_parse_node {
+    ($($ty:ty),+) => {
+        $(impl ParseNode for $ty {})+
+    };
+}
+impl_parse_node!(Command, Gcode, Mcode, Scode, Tcode);
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Command {
     Comment(String),
