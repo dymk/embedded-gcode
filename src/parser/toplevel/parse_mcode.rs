@@ -9,12 +9,13 @@ use crate::{
         nom_types::{IParseResult, IntoParser as _},
         ok,
         parse_code_and_number::parse_code_and_number,
+        Input,
     },
     GcodeParser,
 };
 
 impl GcodeParser for Mcode {
-    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+    fn parse(input: Input) -> IParseResult<Self> {
         parse_code_and_number(
             b'M',
             (

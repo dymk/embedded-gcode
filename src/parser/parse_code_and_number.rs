@@ -3,17 +3,19 @@ use crate::GcodeParseError;
 use nom::{bytes::complete::tag_no_case, character::complete::space0, sequence::preceded, Parser};
 use variadics_please::all_tuples_enumerated;
 
+use super::Input;
+
 pub trait List<'a, O> {
-    fn choice(&mut self, input: &'a [u8]) -> IParseResult<'a, O>;
+    fn choice(&mut self, input: Input<'a>) -> IParseResult<'a, O>;
 }
 
 fn try_choice<'a, O, P>(
-    input: &'a [u8],
+    input: Input<'a>,
     number: &'static str,
     parser: &mut P,
 ) -> IParseResult<'a, O>
 where
-    P: Parser<&'a [u8], O, GcodeParseError<'a>>,
+    P: Parser<Input<'a>, O, GcodeParseError<'a>>,
 {
     let input_without_number = match number_code(number).parse(input) {
         Ok((i, _)) => i,
@@ -30,9 +32,9 @@ macro_rules! expand_code_parsers {
     ($(($n:tt, $Parser:ident)),*) => {
         impl<'a, O, $($Parser),*> List<'a, O> for ($((&'static str, $Parser),)*)
         where
-            $($Parser: Parser<&'a [u8], O, GcodeParseError<'a>>),*
+            $($Parser: Parser<Input<'a>, O, GcodeParseError<'a>>),*
         {
-            fn choice(&mut self, input: &'a [u8]) -> IParseResult<'a, O> {
+            fn choice(&mut self, input: Input<'a>) -> IParseResult<'a, O> {
                 $(
                     if let Ok(result) = try_choice(input, self.$n .0, &mut self.$n .1) {
                         return Ok(result);
@@ -52,7 +54,7 @@ all_tuples_enumerated!(expand_code_parsers, 0, 16, P);
 pub fn parse_code_and_number<'a, O: 'static>(
     code_char: u8,
     mut parsers: impl List<'a, O>,
-) -> impl Parser<&'a [u8], O, GcodeParseError<'a>> {
+) -> impl Parser<Input<'a>, O, GcodeParseError<'a>> {
     preceded(space_before(tag_no_case([code_char])), move |input| {
         parsers.choice(input)
     })
@@ -72,7 +74,8 @@ mod tests {
     fn test_parse_code_and_number() {
         let mut parser =
             parse_code_and_number(b'G', (("0", map_res_f1(opt(Axes::parse), Gcode::G0)),));
-        let (_, result) = parser.parse(b"G0 X10").unwrap();
+        let input = b"G0 X10".into();
+        let (_, result) = parser.parse(input).unwrap();
         assert_eq!(
             result,
             Gcode::G0(Some(Axes::new().set(Axis::X, Expression::lit(10.0))))

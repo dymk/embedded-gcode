@@ -1,6 +1,6 @@
 use crate::{
     gcode::{Command, Gcode, Mcode, Ocode, Scode, Tcode},
-    parser::{nom_types::IParseResult, ok, parse_utils::space_before, toplevel::*},
+    parser::{nom_types::IParseResult, ok, parse_utils::space_before, toplevel::*, Input},
     GcodeParser,
 };
 use nom::{
@@ -11,13 +11,13 @@ use nom::{
 };
 
 impl GcodeParser for Command {
-    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
-        fn command<'a, 'b, SubCommand>(
+    fn parse(input: Input) -> IParseResult<Self> {
+        fn command<'a, SubCommand>(
             // Map the parsed sub-command into a Command e.g. Gcode into Command::G(Gcode)
             command_ctor: impl Fn(SubCommand) -> Command,
             // The parser for the sub-command, results in a Gcode, Mcode, etc
-            command_parser: fn(&'a [u8]) -> IParseResult<'a, SubCommand>,
-        ) -> impl FnMut(&'a [u8]) -> IParseResult<'a, Command> {
+            command_parser: fn(Input) -> IParseResult<SubCommand>,
+        ) -> impl FnMut(Input<'a>) -> IParseResult<'a, Command> {
             map_res(command_parser, move |parsed| ok(command_ctor(parsed)))
         }
 

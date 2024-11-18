@@ -8,7 +8,7 @@ use core::error::Error;
 extern crate std;
 
 fn try_parse_interpret(input: &[u8]) -> Result<Command, Box<dyn Error>> {
-    Command::parse(input)
+    Command::parse(input.into())
         .map_err(|e| {
             std::format!(
                 "error parsing {}: {:?}",

@@ -1,6 +1,5 @@
 use crate::parser::nom_types::IParseResult;
 use crate::GcodeParseError;
-use core::str::from_utf8;
 use nom::{
     bytes::complete::tag,
     character::complete::digit1,
@@ -10,9 +9,11 @@ use nom::{
     Parser,
 };
 
-pub fn parse_u32<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, u32> {
-    map_res(digit1, |bytes| {
-        str::parse(match from_utf8(bytes) {
+use super::Input;
+
+pub fn parse_u32<'a>() -> impl FnMut(Input<'a>) -> IParseResult<'a, u32> {
+    map_res(digit1, |input: Input<'a>| {
+        str::parse(match input.as_utf8() {
             Ok(s) => s,
             Err(_) => "invalid",
         })
@@ -21,29 +22,31 @@ pub fn parse_u32<'a>() -> impl FnMut(&'a [u8]) -> IParseResult<'a, u32> {
 
 #[inline(always)]
 pub fn map_res_f1<'a, 'b, T, R>(
-    parser: impl Parser<&'a [u8], T, GcodeParseError<'a>>,
+    parser: impl Parser<Input<'a>, T, GcodeParseError<'a>>,
     ctor: impl Fn(T) -> R,
-) -> impl Parser<&'a [u8], R, GcodeParseError<'a>> {
+) -> impl Parser<Input<'a>, R, GcodeParseError<'a>> {
     map_res(parser, move |value| ok(ctor(value)))
 }
 
 #[inline(always)]
 pub fn map_res_into<'a, T: Into<R>, R>(
-    parser: impl Parser<&'a [u8], T, GcodeParseError<'a>>,
-) -> impl Parser<&'a [u8], R, GcodeParseError<'a>> {
+    parser: impl Parser<Input<'a>, T, GcodeParseError<'a>>,
+) -> impl Parser<Input<'a>, R, GcodeParseError<'a>> {
     map_res(parser, move |value| ok(value.into()))
 }
 
 #[inline(always)]
-pub fn number_code<'a>(number: &'static str) -> impl FnMut(&'a [u8]) -> IParseResult<'a, &'a [u8]> {
+pub fn number_code<'a>(
+    number: &'static str,
+) -> impl FnMut(Input<'a>) -> IParseResult<'a, Input<'a>> {
     // exact number str followed by non-digit
     terminated(tag(number), not(digit1))
 }
 
 #[inline(always)]
 pub fn space_before<'a, T>(
-    parser: impl Parser<&'a [u8], T, GcodeParseError<'a>>,
-) -> impl FnMut(&'a [u8]) -> IParseResult<'a, T> {
+    parser: impl Parser<Input<'a>, T, GcodeParseError<'a>>,
+) -> impl FnMut(Input<'a>) -> IParseResult<'a, T> {
     preceded(space0, parser)
 }
 

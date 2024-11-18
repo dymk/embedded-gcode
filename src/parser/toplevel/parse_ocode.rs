@@ -5,6 +5,7 @@ use crate::{
         nom_types::IParseResult,
         ok,
         parse_utils::{parse_u32, space_before},
+        Input,
     },
     GcodeParser,
 };
@@ -17,12 +18,12 @@ use nom::{
 };
 
 impl GcodeParser for Ocode {
-    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+    fn parse(input: Input) -> IParseResult<Self> {
         preceded(space_before(tag_no_case("O")), parse_ocode).parse(input)
     }
 }
 
-fn parse_ocode(input: &[u8]) -> IParseResult<'_, Ocode> {
+fn parse_ocode(input: Input) -> IParseResult<Ocode> {
     map_res(
         tuple((
             parse_u32(),

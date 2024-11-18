@@ -11,10 +11,10 @@ pub struct ModelState {
 }
 
 #[derive(Debug, Default)]
-struct MmSec(pub f64);
+pub struct MmSec(pub f64);
 
 #[derive(Debug)]
-struct Position<const N: usize>([f64; N]);
+pub struct Position<const N: usize>([f64; N]);
 impl<const N: usize> Default for Position<N> {
     fn default() -> Self {
         Self([0.0; N])

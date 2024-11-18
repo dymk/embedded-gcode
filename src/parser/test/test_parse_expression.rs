@@ -4,7 +4,7 @@ use crate::{
     gcode::expression::{Expression, Param, UnaryFuncName},
     parser::nom_types::GcodeParseError,
 };
-use core::str::from_utf8;
+
 use nom::error::Error;
 use std::prelude::v1::*;
 
@@ -17,10 +17,11 @@ use std::prelude::v1::*;
 fn test_parse_atom(#[case] input: &str, #[case] expected: Expression) {
     use crate::{parser::test::ExpressionAtom, GcodeParser as _};
 
-    let parsed = match ExpressionAtom::parse(input.as_bytes()) {
+    let input = input.into();
+    let parsed = match ExpressionAtom::parse(input) {
         Ok((_, parsed)) => parsed,
         Err(nom::Err::Error(GcodeParseError::NomError(Error { input, code }))) => {
-            panic!("{:?} {}", code, from_utf8(input).unwrap())
+            panic!("{:?} {}", code, input.as_utf8().unwrap())
         }
         Err(err) => panic!("{:?}", err),
     };

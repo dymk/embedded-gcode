@@ -16,15 +16,17 @@ macro_rules! test_parser_impl {
             for input in permute_whitespace(tokens) {
                 let expr_builder = ExprBuilder::new();
                 let expected = node_builder(&expr_builder).into();
-                use crate::parser::GcodeParser;
-                let (rest, actual) = match $node_type::parse(input.as_bytes()) {
+                use crate::parser::GcodeParser as _;
+                use crate::parser::Input;
+                let input = Input::from(input.as_str());
+                let (rest, actual) = match $node_type::parse(input) {
                     Ok((rest, actual)) => (rest, actual),
                     Err(nom::Err::Error(GcodeParseError::NomError(err))) => {
                         panic!(
                             "[input `{}`] [code {:?}] [rest: `{}`]",
                             input,
                             err.code,
-                            from_utf8(err.input)
+                            err.input.as_utf8().unwrap()
                         )
                     }
                     Err(err) => panic!("{:?}", err),
@@ -33,12 +35,12 @@ macro_rules! test_parser_impl {
                     expected.clone(),
                     actual.clone(),
                     "[rest `{}`]",
-                    from_utf8(rest)
+                    rest.as_utf8().unwrap()
                 );
                 assert!(
                     rest.iter().all(|b| b.is_ascii_whitespace()),
                     "[rest `{}`]",
-                    from_utf8(rest)
+                    rest.as_utf8().unwrap()
                 );
             }
         }
@@ -62,7 +64,3 @@ test_parser_impl!(test_parse_axes, Axes);
 test_parser_impl!(test_parse_param, Param);
 test_parser_impl!(test_parse_command, Command);
 test_parser_impl!(test_parse_expr, Expression);
-
-fn from_utf8(input: &[u8]) -> &str {
-    std::str::from_utf8(input).unwrap()
-}

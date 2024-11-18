@@ -45,9 +45,9 @@ impl Expression {
     }
 }
 
-impl Into<Expression> for f32 {
-    fn into(self) -> Expression {
-        Expression::lit(self)
+impl From<f32> for Expression {
+    fn from(val: f32) -> Self {
+        Expression::lit(val)
     }
 }
 
@@ -107,19 +107,20 @@ impl Param {
         Self::Expr(Box::new(expr.into()))
     }
 }
-impl Into<Param> for Expression {
-    fn into(self) -> Param {
-        Param::expr(self)
+impl From<Expression> for Param {
+    fn from(expr: Expression) -> Self {
+        Param::expr(expr)
     }
 }
-impl Into<Param> for u32 {
-    fn into(self) -> Param {
-        Param::numbered(self)
+impl From<u32> for Param {
+    fn from(val: u32) -> Self {
+        Param::numbered(val)
     }
 }
-impl Into<Expression> for Param {
-    fn into(self) -> Expression {
-        Expression::param(self)
+
+impl From<Param> for Expression {
+    fn from(param: Param) -> Self {
+        Expression::param(param)
     }
 }
 

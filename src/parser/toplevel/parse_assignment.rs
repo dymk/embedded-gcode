@@ -5,11 +5,11 @@ use crate::{
         expression::{Expression, Param},
         Command,
     },
-    parser::{nom_types::IParseResult, ok, space_before},
+    parser::{nom_types::IParseResult, ok, space_before, Input},
     GcodeParser as _,
 };
 
-pub fn parse_assignment(input: &[u8]) -> IParseResult<'_, Command> {
+pub fn parse_assignment(input: Input) -> IParseResult<Command> {
     map_res(
         tuple((Param::parse, space_before(tag("=")), Expression::parse)),
         |(param, _, expr)| ok(Command::Assign(param, expr)),

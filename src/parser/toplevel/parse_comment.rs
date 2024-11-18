@@ -1,6 +1,6 @@
 use crate::{
     gcode::Command,
-    parser::{nom_types::IParseResult, ok, parse_utils::space_before},
+    parser::{nom_types::IParseResult, ok, parse_utils::space_before, Input},
 };
 use alloc::string::String;
 use nom::{
@@ -9,11 +9,11 @@ use nom::{
     sequence::delimited,
 };
 
-pub fn parse_comment(input: &[u8]) -> IParseResult<'_, Command> {
+pub fn parse_comment(input: Input) -> IParseResult<Command> {
     map_res(
         delimited(space_before(tag("(")), take_until1(")"), tag(")")),
-        move |bytes| {
-            let comment_str = String::from_utf8(bytes.to_vec())?;
+        move |input| {
+            let comment_str = String::from_utf8(input.as_bytes().to_vec())?;
             ok(Command::Comment(comment_str))
         },
     )(input)

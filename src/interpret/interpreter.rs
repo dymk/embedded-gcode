@@ -345,7 +345,7 @@ mod test {
     #[case("-2.0 ** -1.0", -0.5)]
     fn test_eval_expr(#[case] input: &str, #[case] expected: f32) {
         let interpreter = Interpreter::default();
-        let expression = Expression::parse(input.as_bytes()).unwrap().1;
+        let expression = Expression::parse(input.into()).unwrap().1;
         let actual = interpreter.eval_expr(&expression);
         assert!(
             (actual - expected).abs() < 1e-6,

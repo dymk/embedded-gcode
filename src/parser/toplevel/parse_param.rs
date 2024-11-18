@@ -1,6 +1,6 @@
 use crate::{
     gcode::expression::{Expression, NamedParam, NumberedParam, Param},
-    parser::{err, map_res_into, nom_types::IParseResult, ok, parse_u32, space_before},
+    parser::{err, map_res_into, nom_types::IParseResult, ok, parse_u32, space_before, Input},
     GcodeParser,
 };
 use alloc::string::String;
@@ -14,7 +14,7 @@ use nom::{
 };
 
 impl GcodeParser for Param {
-    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+    fn parse(input: Input) -> IParseResult<Self> {
         space_before(alt((
             map_res_into(NamedParam::parse),
             map_res_into(NumberedParam::parse),
@@ -24,7 +24,7 @@ impl GcodeParser for Param {
 
 /// named parameter, global or local
 impl GcodeParser for NamedParam {
-    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+    fn parse(input: Input) -> IParseResult<Self> {
         map_res(
             delimited(
                 tuple((space_before(tag("#")), space_before(tag("<")))),
@@ -45,7 +45,7 @@ impl GcodeParser for NamedParam {
 
 /// numbered parameter e.g. `#5`
 impl GcodeParser for NumberedParam {
-    fn parse(input: &[u8]) -> IParseResult<'_, Self> {
+    fn parse(input: Input) -> IParseResult<Self> {
         preceded(
             space_before(tag("#")),
             space_before(alt((
@@ -57,8 +57,8 @@ impl GcodeParser for NumberedParam {
     }
 }
 
-fn parse_name<'i>(input: &'i [u8]) -> IParseResult<'i, String> {
-    map_res(take_while(|b| b != b'>'), move |bytes: &'i [u8]| {
+fn parse_name(input: Input) -> IParseResult<String> {
+    map_res(take_while(|b| b != b'>'), move |bytes: Input| {
         // count number of non-space characters
         let num_non_space = bytes.iter().filter(|c| !c.is_ascii_whitespace()).count();
         let mut string = String::with_capacity(num_non_space);
