@@ -12,6 +12,7 @@ pub struct Interpreter {
     global_vars: hashbrown::HashMap<String, f32>,
     model_state: ModelState,
 }
+use micromath::F32Ext as _;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum InterpretError {
