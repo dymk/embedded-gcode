@@ -68,11 +68,11 @@ impl Interpreter {
 
     fn get_param_or_initialize_mut(&mut self, param: &Param) -> Option<&mut f32> {
         match param {
-            Param::Numbered(numbered_param) => Some(
-                self.local_vars_numbered
-                    .entry(*numbered_param)
-                    .or_insert(0.0),
-            ),
+            Param::Numbered(num) => Some(self.get_numbered_param_or_initialize_mut(*num)),
+            Param::Expr(expr) => {
+                let num = self.eval_expr(expr);
+                Some(self.get_numbered_param_or_initialize_mut(num as u32))
+            }
             Param::NamedLocal(named_local_param) => {
                 if self.local_vars_named.contains_key(named_local_param) {
                     self.local_vars_named.get_mut(named_local_param)
@@ -92,11 +92,19 @@ impl Interpreter {
         }
     }
 
+    fn get_numbered_param_or_initialize_mut(&mut self, param_num: u32) -> &mut f32 {
+        self.local_vars_numbered.entry(param_num).or_insert(0.0)
+    }
+
     fn get_param(&self, param: &Param) -> Option<f32> {
         match param {
             Param::Numbered(numbered_param) => self.get_numbered_param(*numbered_param),
             Param::NamedLocal(named_local_param) => self.get_local_param(named_local_param),
             Param::NamedGlobal(named_global_param) => self.get_global_param(named_global_param),
+            Param::Expr(expr) => {
+                let param_num = self.eval_expr(expr);
+                self.get_numbered_param(param_num as u32)
+            }
         }
     }
 

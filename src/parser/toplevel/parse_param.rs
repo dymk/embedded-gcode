@@ -1,5 +1,5 @@
 use crate::{
-    gcode::expression::{NamedParam, NumberedParam, Param},
+    gcode::expression::{Expression, NamedParam, NumberedParam, Param},
     parser::{err, map_res_into, nom_types::IParseResult, ok, parse_u32, space_before},
     GcodeParser,
 };
@@ -9,7 +9,7 @@ use nom::{
     bytes::complete::{tag, take_while},
     combinator::map_res,
     error::{Error, ErrorKind},
-    sequence::{delimited, preceded},
+    sequence::{delimited, preceded, tuple},
     Parser as _,
 };
 
@@ -26,7 +26,11 @@ impl GcodeParser for Param {
 impl GcodeParser for NamedParam {
     fn parse(input: &[u8]) -> IParseResult<'_, Self> {
         map_res(
-            delimited(space_before(tag("#<")), parse_name, space_before(tag(">"))),
+            delimited(
+                tuple((space_before(tag("#")), space_before(tag("<")))),
+                parse_name,
+                space_before(tag(">")),
+            ),
             |name| {
                 ok(if name.starts_with('_') {
                     NamedParam::named_global(name)
@@ -44,7 +48,10 @@ impl GcodeParser for NumberedParam {
     fn parse(input: &[u8]) -> IParseResult<'_, Self> {
         preceded(
             space_before(tag("#")),
-            map_res(parse_u32(), |value| ok(NumberedParam::numbered(value))),
+            space_before(alt((
+                map_res(parse_u32(), |value| ok(NumberedParam::numbered(value))),
+                map_res(Expression::parse, |value| ok(NumberedParam::expr(value))),
+            ))),
         )
         .parse(input)
     }

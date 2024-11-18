@@ -32,12 +32,22 @@ impl Expression {
     pub fn func_call(func_call: impl Into<FuncCall>) -> Self {
         Self::FuncCall(func_call.into())
     }
-    pub fn binop(op: BinOp, left: impl Into<Expression>, right: impl Into<Expression>) -> Self {
+    pub fn binop(
+        op: impl Into<BinOp>,
+        left: impl Into<Expression>,
+        right: impl Into<Expression>,
+    ) -> Self {
         Self::BinOpExpr {
-            op,
+            op: op.into(),
             left: Box::new(left.into()),
             right: Box::new(right.into()),
         }
+    }
+}
+
+impl Into<Expression> for f32 {
+    fn into(self) -> Expression {
+        Expression::lit(self)
     }
 }
 
@@ -46,7 +56,8 @@ impl Debug for Expression {
         match self {
             Self::Lit(arg0) => f.write_fmt(format_args!("{}", arg0)),
             Self::Param(param) => match param {
-                Param::Numbered(numbered) => f.write_fmt(format_args!("#{}", numbered)),
+                Param::Numbered(param_num) => f.write_fmt(format_args!("#{}", param_num)),
+                Param::Expr(expr) => f.write_fmt(format_args!("#[{:?}]", expr)),
                 Param::NamedLocal(named_local) => f.write_fmt(format_args!("#<{}>", named_local)),
                 Param::NamedGlobal(named_global) => {
                     f.write_fmt(format_args!("#<{}>", named_global))
@@ -78,6 +89,8 @@ pub enum Param {
     NamedGlobal(String),
     #[subenum(NumberedParam)]
     Numbered(u32),
+    #[subenum(NumberedParam)]
+    Expr(Box<Expression>),
 }
 
 impl Param {
@@ -90,7 +103,26 @@ impl Param {
     pub fn numbered(val: u32) -> Self {
         Self::Numbered(val)
     }
+    pub fn expr(expr: impl Into<Expression>) -> Self {
+        Self::Expr(Box::new(expr.into()))
+    }
 }
+impl Into<Param> for Expression {
+    fn into(self) -> Param {
+        Param::expr(self)
+    }
+}
+impl Into<Param> for u32 {
+    fn into(self) -> Param {
+        Param::numbered(self)
+    }
+}
+impl Into<Expression> for Param {
+    fn into(self) -> Expression {
+        Expression::param(self)
+    }
+}
+
 impl NamedParam {
     pub fn named_local(val: impl Into<String>) -> Self {
         Self::NamedLocal(val.into())
@@ -102,6 +134,9 @@ impl NamedParam {
 impl NumberedParam {
     pub fn numbered(val: u32) -> Self {
         Self::Numbered(val)
+    }
+    pub fn expr(expr: impl Into<Expression>) -> Self {
+        Self::Expr(Box::new(expr.into()))
     }
 }
 

@@ -59,13 +59,33 @@ fn test_interpret_context() -> Result<(), Box<dyn Error>> {
 #[test]
 fn test_interpret_assign() -> Result<(), Box<dyn Error>> {
     let mut interpreter = Interpreter::default();
+
+    // assign a param
     let value = try_interpret(&mut interpreter, b"#1 = 10")?;
     assert_eq!(value, InterpretValue::EvalExpr(10.0));
     assert_eq!(interpreter.get_numbered_param(1), Some(10.0));
 
+    // reassign a param
     let value = try_interpret(&mut interpreter, b"#1 = 20")?;
     assert_eq!(value, InterpretValue::EvalExpr(20.0));
     assert_eq!(interpreter.get_numbered_param(1), Some(20.0));
+
+    // assign from another param
+    let value = try_interpret(&mut interpreter, b"#2 = #1")?;
+    assert_eq!(value, InterpretValue::EvalExpr(20.0));
+    assert_eq!(interpreter.get_numbered_param(2), Some(20.0));
+
+    // test indirectly assigning a param
+    let value = try_interpret(&mut interpreter, b"##1 = 5")?;
+    assert_eq!(value, InterpretValue::EvalExpr(5.0));
+    assert_eq!(interpreter.get_numbered_param(20), Some(5.0));
+
+    // test assigning from a param indirectly
+    try_interpret(&mut interpreter, b"#2 = 8")?;
+    try_interpret(&mut interpreter, b"#1 = 2")?;
+    let value = try_interpret(&mut interpreter, b"#20 = ##1")?;
+    assert_eq!(value, InterpretValue::EvalExpr(8.0));
+    assert_eq!(interpreter.get_numbered_param(20), Some(8.0));
 
     Ok(())
 }
