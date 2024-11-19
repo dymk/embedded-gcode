@@ -1,11 +1,13 @@
+use super::binop::BinOp;
 use crate::enum_value_map;
-use alloc::boxed::Box;
-use alloc::string::String;
+use crate::eval::{bool_to_float, Eval, EvalContext};
+use alloc::{boxed::Box, string::String};
 use core::fmt::Debug;
 use core::str::from_utf8;
 use subenum::subenum;
 
-use super::binop::BinOp;
+#[allow(unused_imports)]
+use micromath::F32Ext as _;
 
 #[subenum(ExpressionAtom)]
 #[derive(PartialEq, Clone)]
@@ -41,6 +43,17 @@ impl Expression {
             op: op.into(),
             left: Box::new(left.into()),
             right: Box::new(right.into()),
+        }
+    }
+}
+
+impl Eval for Expression {
+    fn eval(&self, context: &dyn EvalContext) -> Option<f32> {
+        match self {
+            Self::Lit(val) => Some(*val),
+            Self::Param(param) => context.get_param(param),
+            Self::FuncCall(func_call) => func_call.eval(context),
+            Self::BinOpExpr { op, left, right } => op.eval(left, right, context),
         }
     }
 }
@@ -180,6 +193,48 @@ impl FuncCall {
     }
     pub fn unary(name: UnaryFuncName, arg: Box<Expression>) -> Self {
         Self::Unary { name, arg }
+    }
+
+    fn eval_unary_func_call(
+        name: UnaryFuncName,
+        arg: &Expression,
+        context: &dyn EvalContext,
+    ) -> Option<f32> {
+        let arg = arg.eval(context)?;
+        Some(match name {
+            UnaryFuncName::Abs => {
+                if arg >= 0.0 {
+                    arg
+                } else {
+                    -arg
+                }
+            }
+            UnaryFuncName::Acos => arg.acos(),
+            UnaryFuncName::Asin => arg.asin(),
+            UnaryFuncName::Cos => arg.cos(),
+            UnaryFuncName::Exp => arg.exp(),
+            UnaryFuncName::Fix => arg.floor(),
+            UnaryFuncName::Fup => arg.ceil(),
+            UnaryFuncName::Round => arg.round(),
+            UnaryFuncName::Ln => arg.ln(),
+            UnaryFuncName::Sin => arg.sin(),
+            UnaryFuncName::Sqrt => arg.sqrt(),
+            UnaryFuncName::Tan => arg.tan(),
+        })
+    }
+}
+
+impl Eval for FuncCall {
+    fn eval(&self, context: &dyn EvalContext) -> Option<f32> {
+        match self {
+            FuncCall::Atan { arg_y, arg_x } => {
+                let arg_y = arg_y.eval(context)?;
+                let arg_x = arg_x.eval(context)?;
+                Some(arg_y.atan2(arg_x))
+            }
+            FuncCall::Exists { param } => Some(bool_to_float(context.named_param_exists(param))),
+            FuncCall::Unary { name, arg } => Self::eval_unary_func_call(*name, arg, context),
+        }
     }
 }
 

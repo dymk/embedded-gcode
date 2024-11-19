@@ -1,6 +1,6 @@
 use crate::{
     gcode::expression::{Expression, NamedParam, NumberedParam, Param},
-    parser::{err, map_res_into, nom_types::IParseResult, ok, parse_u32, space_before, Input},
+    parser::{err, map_res_into_ok, nom_types::IParseResult, ok, parse_u32, space_before, Input},
     GcodeParser,
 };
 use alloc::string::String;
@@ -16,8 +16,8 @@ use nom::{
 impl GcodeParser for Param {
     fn parse(input: Input) -> IParseResult<Self> {
         space_before(alt((
-            map_res_into(NamedParam::parse),
-            map_res_into(NumberedParam::parse),
+            map_res_into_ok(NamedParam::parse),
+            map_res_into_ok(NumberedParam::parse),
         )))(input)
     }
 }

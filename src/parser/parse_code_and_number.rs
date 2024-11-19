@@ -65,16 +65,17 @@ mod tests {
     use super::*;
     use crate::{
         gcode::{expression::Expression, Axes, Axis, Gcode},
-        parser::map_res_f1,
+        parser::{map_res_f1, test::TestContext},
         GcodeParser as _,
     };
     use nom::combinator::opt;
 
     #[test]
     fn test_parse_code_and_number() {
+        let context = TestContext::default().const_fold(false);
+        let input = Input::new(b"G0 X10", &context);
         let mut parser =
             parse_code_and_number(b'G', (("0", map_res_f1(opt(Axes::parse), Gcode::G0)),));
-        let input = b"G0 X10".into();
         let (_, result) = parser.parse(input).unwrap();
         assert_eq!(
             result,

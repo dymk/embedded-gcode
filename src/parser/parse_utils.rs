@@ -29,7 +29,7 @@ pub fn map_res_f1<'a, 'b, T, R>(
 }
 
 #[inline(always)]
-pub fn map_res_into<'a, T: Into<R>, R>(
+pub fn map_res_into_ok<'a, T: Into<R>, R>(
     parser: impl Parser<Input<'a>, T, GcodeParseError<'a>>,
 ) -> impl Parser<Input<'a>, R, GcodeParseError<'a>> {
     map_res(parser, move |value| ok(value.into()))

@@ -9,7 +9,7 @@ use crate::gcode::ParseNode;
 
 use super::Input;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum GcodeParseError<'a> {
     NomError(NomError<Input<'a>>),
     OutOfMemory,

@@ -1,7 +1,10 @@
 use super::model_state::{ModelState, ModelStateUnit};
-use crate::gcode::{
-    expression::{Expression, FuncCall, NamedParam, Param, UnaryFuncName},
-    ArithmeticBinOp, BinOp, CmpBinOp, Command, Gcode, LogicalBinOp,
+use crate::{
+    eval::{Eval as _, EvalContext},
+    gcode::{
+        expression::{Expression, NamedParam, Param},
+        Command, Gcode,
+    },
 };
 use alloc::string::String;
 
@@ -12,11 +15,11 @@ pub struct Interpreter {
     global_vars: hashbrown::HashMap<String, f32>,
     model_state: ModelState,
 }
-use micromath::F32Ext as _;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum InterpretError {
     ParamNotFound(Param),
+    CannotEval(Expression),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -58,7 +61,11 @@ impl Interpreter {
     }
 
     fn interpret_assign(&mut self, to: Param, from: Expression) -> InterpretResult {
-        let from = self.eval_expr(&from);
+        let from = match self.eval_expr(&from) {
+            Some(val) => val,
+            None => return Err(InterpretError::CannotEval(from)),
+        };
+
         let to = self
             .get_param_or_initialize_mut(&to)
             .ok_or(InterpretError::ParamNotFound(to))?;
@@ -70,7 +77,10 @@ impl Interpreter {
         match param {
             Param::Numbered(num) => Some(self.get_numbered_param_or_initialize_mut(*num)),
             Param::Expr(expr) => {
-                let num = self.eval_expr(expr);
+                let num = match self.eval_expr(expr) {
+                    Some(num) => num,
+                    None => return None,
+                };
                 Some(self.get_numbered_param_or_initialize_mut(num as u32))
             }
             Param::NamedLocal(named_local_param) => {
@@ -102,8 +112,11 @@ impl Interpreter {
             Param::NamedLocal(named_local_param) => self.get_local_param(named_local_param),
             Param::NamedGlobal(named_global_param) => self.get_global_param(named_global_param),
             Param::Expr(expr) => {
-                let param_num = self.eval_expr(expr);
-                self.get_numbered_param(param_num as u32)
+                let param_num = match self.eval_expr(expr) {
+                    Some(num) => num as u32,
+                    None => return None,
+                };
+                self.get_numbered_param(param_num)
             }
         }
     }
@@ -118,106 +131,29 @@ impl Interpreter {
         self.local_vars_numbered.get(&name).copied()
     }
 
-    fn eval_expr(&self, expression: &Expression) -> f32 {
-        match expression {
-            Expression::Lit(value) => *value,
-            Expression::Param(param) => self.get_param(param).unwrap_or(0.0),
-            Expression::BinOpExpr { op, left, right } => self.eval_binop_expr(*op, left, right),
-            Expression::FuncCall(func_call) => self.eval_func_call(func_call),
-        }
+    fn eval_expr(&self, expression: &Expression) -> Option<f32> {
+        expression.eval(self)
+    }
+}
+
+impl EvalContext for Interpreter {
+    fn const_fold(&self) -> bool {
+        true
     }
 
-    fn eval_binop_expr(&self, op: BinOp, left: &Expression, right: &Expression) -> f32 {
-        let left = self.eval_expr(left);
-        match op {
-            BinOp::Logical(op) => {
-                let left = left != 0.;
-                let right = self.eval_expr(right) != 0.;
-                bool_to_float(match op {
-                    LogicalBinOp::And => left && right,
-                    LogicalBinOp::Or => left || right,
-                    LogicalBinOp::Xor => left ^ right,
-                })
-            }
-            BinOp::Cmp(op) => {
-                let right = self.eval_expr(right);
-                bool_to_float(match op {
-                    CmpBinOp::Eq => left == right,
-                    CmpBinOp::Ne => left != right,
-                    CmpBinOp::Gt => left > right,
-                    CmpBinOp::Ge => left >= right,
-                    CmpBinOp::Lt => left < right,
-                    CmpBinOp::Le => left <= right,
-                })
-            }
-            BinOp::Arithmetic(op) => {
-                let right = self.eval_expr(right);
-                match op {
-                    ArithmeticBinOp::Pow => left.powf(right),
-                    ArithmeticBinOp::Mul => left * right,
-                    ArithmeticBinOp::Div => left / right,
-                    ArithmeticBinOp::Mod => left % right,
-                    ArithmeticBinOp::Add => left + right,
-                    ArithmeticBinOp::Sub => left - right,
-                }
-            }
-        }
+    fn get_param(&self, param: &Param) -> Option<f32> {
+        self.get_param(param)
     }
 
-    fn eval_func_call(&self, func: &FuncCall) -> f32 {
-        match func {
-            FuncCall::Atan { arg_y, arg_x } => {
-                let arg_y = self.eval_expr(arg_y);
-                let arg_x = self.eval_expr(arg_x);
-                arg_y.atan2(arg_x)
-            }
-            FuncCall::Exists { param } => self.eval_exists_func_call(param),
-            FuncCall::Unary { name, arg } => self.eval_unary_func_call(*name, arg),
-        }
-    }
-
-    fn eval_unary_func_call(&self, name: UnaryFuncName, arg: &Expression) -> f32 {
-        let arg = self.eval_expr(arg);
-        match name {
-            UnaryFuncName::Abs => {
-                if arg >= 0.0 {
-                    arg
-                } else {
-                    -arg
-                }
-            }
-            UnaryFuncName::Acos => arg.acos(),
-            UnaryFuncName::Asin => arg.asin(),
-            UnaryFuncName::Cos => arg.cos(),
-            UnaryFuncName::Exp => arg.exp(),
-            UnaryFuncName::Fix => arg.floor(),
-            UnaryFuncName::Fup => arg.ceil(),
-            UnaryFuncName::Round => arg.round(),
-            UnaryFuncName::Ln => arg.ln(),
-            UnaryFuncName::Sin => arg.sin(),
-            UnaryFuncName::Sqrt => arg.sqrt(),
-            UnaryFuncName::Tan => arg.tan(),
-        }
-    }
-
-    fn eval_exists_func_call(&self, param: &NamedParam) -> f32 {
-        bool_to_float(match param {
+    fn named_param_exists(&self, param: &NamedParam) -> bool {
+        match param {
             NamedParam::NamedLocal(named_local_param) => {
                 self.local_vars_named.contains_key(named_local_param)
             }
             NamedParam::NamedGlobal(named_global_param) => {
                 self.global_vars.contains_key(named_global_param)
             }
-        })
-    }
-}
-
-#[inline(always)]
-fn bool_to_float(expr: bool) -> f32 {
-    if expr {
-        1.0
-    } else {
-        0.0
+        }
     }
 }
 
@@ -344,9 +280,12 @@ mod test {
     #[case("-2.0 ** 2.0", 4.0)]
     #[case("-2.0 ** -1.0", -0.5)]
     fn test_eval_expr(#[case] input: &str, #[case] expected: f32) {
+        use crate::parser::Input;
+
         let interpreter = Interpreter::default();
-        let expression = Expression::parse(input.into()).unwrap().1;
-        let actual = interpreter.eval_expr(&expression);
+        let input = Input::new(input.as_bytes(), &interpreter);
+        let expression = Expression::parse(input).unwrap().1;
+        let actual = interpreter.eval_expr(&expression).unwrap();
         assert!(
             (actual - expected).abs() < 1e-6,
             "{} => {} != {}",

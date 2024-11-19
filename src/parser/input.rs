@@ -7,58 +7,26 @@ use core::{
 };
 use nom::error::Error;
 
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
-pub struct Context {
-    const_fold: bool,
-}
+use crate::eval::EvalContext;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone)]
 pub struct Input<'a> {
-    context: Context,
+    context: &'a dyn EvalContext,
     input: &'a [u8],
 }
 
-impl<'a> From<&'a [u8]> for Input<'a> {
-    fn from(input: &'a [u8]) -> Self {
-        Input {
-            context: Context::default(),
-            input,
-        }
-    }
-}
-
-impl Display for Input<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "Input(fold: {}, \"{}\")",
-            self.context.const_fold,
-            self.as_utf8().unwrap()
-        )
-    }
-}
-
-impl<'a, const N: usize> From<&'a [u8; N]> for Input<'a> {
-    fn from(input: &'a [u8; N]) -> Self {
-        Input {
-            context: Context::default(),
-            input,
-        }
-    }
-}
-
-impl<'a> From<&'a str> for Input<'a> {
-    fn from(input: &'a str) -> Self {
-        Input::from(input.as_bytes())
-    }
-}
-
 impl<'a> Input<'a> {
+    pub fn new(input: &'a [u8], context: &'a dyn EvalContext) -> Self {
+        Input { context, input }
+    }
     pub fn as_utf8(&self) -> Result<&str, Utf8Error> {
         core::str::from_utf8(self.input)
     }
     pub fn as_bytes(&self) -> &[u8] {
         self.input
+    }
+    pub fn context(&'a self) -> &'a dyn EvalContext {
+        self.context
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &u8> + '_ {
@@ -85,6 +53,17 @@ impl<'a> Input<'a> {
                 nom::Err::Failure(E2::from_error_kind(self.with_slice(input), code))
             }
         }
+    }
+}
+
+impl Display for Input<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "Input(fold: {}, \"{}\")",
+            self.context.const_fold(),
+            self.as_utf8().unwrap()
+        )
     }
 }
 

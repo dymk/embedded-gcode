@@ -4,6 +4,7 @@ extern crate alloc;
 
 mod bind;
 mod enum_value_map;
+mod eval;
 mod gcode;
 mod interpret;
 mod line_reader;
@@ -16,3 +17,4 @@ pub use crate::interpret::InterpretError;
 pub use crate::interpret::Interpreter;
 pub use crate::parser::GcodeParseError;
 pub use crate::parser::GcodeParser;
+pub use crate::parser::Input;

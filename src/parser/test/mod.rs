@@ -9,6 +9,7 @@ mod test_parse_expression;
 mod test_parse_param;
 
 use crate::gcode::{expression::*, BinOp};
+pub use macro_test_parser::TestContext;
 use std::{collections::HashSet, prelude::v1::*};
 
 struct ExprBuilder {}

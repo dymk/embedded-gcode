@@ -7,23 +7,22 @@ use core::error::Error;
 
 extern crate std;
 
-fn try_parse_interpret(input: &[u8]) -> Result<Command, Box<dyn Error>> {
-    Command::parse(input.into())
-        .map_err(|e| {
-            std::format!(
-                "error parsing {}: {:?}",
-                std::str::from_utf8(input).unwrap(),
-                e
-            )
-            .into()
-        })
+fn try_parse_interpret(
+    interpreter: &mut Interpreter,
+    input: &[u8],
+) -> Result<Command, Box<dyn Error>> {
+    use crate::parser::Input;
+    let input = Input::new(input, interpreter);
+
+    Command::parse(input)
+        .map_err(|e| std::format!("error parsing {}: {:?}", input.as_utf8().unwrap(), e).into())
         .map(|cmd| cmd.1)
 }
 fn try_interpret(
     interpreter: &mut Interpreter,
     input: &[u8],
 ) -> Result<InterpretValue, Box<dyn Error>> {
-    let command = try_parse_interpret(input)?;
+    let command = try_parse_interpret(interpreter, input)?;
     interpreter.interpret(command).map_err(|e| {
         std::format!(
             "error interpreting {}: {:?}",

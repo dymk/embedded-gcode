@@ -83,10 +83,10 @@ pub enum OcodeStatement {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Scode(pub f32);
+pub struct Scode(pub Expression);
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Tcode(pub u32);
+pub struct Tcode(pub Expression);
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Fcode(pub f32);

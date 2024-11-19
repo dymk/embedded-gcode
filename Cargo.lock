@@ -45,6 +45,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "embedded-gcode"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "bump-into",
+ "embedded-io-async",
+ "futures-lite",
+ "hashbrown",
+ "log",
+ "micromath",
+ "nom",
+ "paste",
+ "rstest",
+ "subenum",
+ "variadics_please",
+]
+
+[[package]]
 name = "embedded-io"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -183,24 +201,6 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
-]
-
-[[package]]
-name = "gcode"
-version = "0.1.0"
-dependencies = [
- "approx",
- "bump-into",
- "embedded-io-async",
- "futures-lite",
- "hashbrown",
- "log",
- "micromath",
- "nom",
- "paste",
- "rstest",
- "subenum",
- "variadics_please",
 ]
 
 [[package]]

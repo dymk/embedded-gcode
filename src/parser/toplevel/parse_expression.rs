@@ -1,8 +1,9 @@
 use crate::{
     bind,
+    eval::bool_to_float,
     gcode::{expression::*, ArithmeticBinOp, BinOp, CmpBinOp, LogicalBinOp},
     parser::{
-        err, fold_many0_result, map_res_f1, map_res_into, ok, parse_utils::space_before,
+        err, fold_many0_result, map_res_f1, map_res_into_ok, ok, parse_utils::space_before,
         IParseResult, Input,
     },
     GcodeParser,
@@ -50,27 +51,29 @@ impl GcodeParser for Expression {
     }
 }
 
-impl GcodeParser for ExpressionAtom {
-    fn parse(input: Input) -> IParseResult<'_, Self> {
-        parse_atom(input)
-    }
-}
-
 fn parse_expression(input: Input) -> IParseResult<'_, Expression> {
     parse_expression_generic(&PRECEDENCE_LIST, input)
 }
 
-fn parse_atom(input: Input) -> IParseResult<'_, ExpressionAtom> {
+fn parse_atom(input: Input) -> IParseResult<'_, Expression> {
     space_before(alt((
         // function call e.g. `ATAN[..expr..]/[..expr..]`, `COS[..expr..]`
         parse_func_call,
-        map_res_f1(Param::parse, ExpressionAtom::Param),
+        map_res_f1(Param::parse, |param| {
+            let context = input.context();
+            if context.const_fold() {
+                if let Some(value) = context.get_param(&param) {
+                    return Expression::lit(value);
+                }
+            }
+            Expression::param(param)
+        }),
         // number literal e.g. `1.0`
-        map_res_f1(float, ExpressionAtom::Lit),
+        map_res_f1(float, Expression::lit),
     )))(input)
 }
 
-fn parse_func_call(input: Input) -> IParseResult<'_, ExpressionAtom> {
+fn parse_func_call(input: Input) -> IParseResult<'_, Expression> {
     alt((
         parse_func_call_atan,
         parse_func_call_exists,
@@ -78,14 +81,14 @@ fn parse_func_call(input: Input) -> IParseResult<'_, ExpressionAtom> {
     ))(input)
 }
 
-fn parse_func_call_atan(input: Input) -> IParseResult<'_, ExpressionAtom> {
+fn parse_func_call_atan(input: Input) -> IParseResult<'_, Expression> {
     map_res(
         preceded(
             tag_no_case("ATAN"),
             separated_pair(parse_group, space_before(tag("/")), parse_group),
         ),
         move |(arg_y, arg_x)| {
-            ok(ExpressionAtom::FuncCall(FuncCall::atan(
+            ok(Expression::func_call(FuncCall::atan(
                 Box::new(arg_y),
                 Box::new(arg_x),
             )))
@@ -94,7 +97,7 @@ fn parse_func_call_atan(input: Input) -> IParseResult<'_, ExpressionAtom> {
     .parse(input)
 }
 
-fn parse_func_call_exists(input: Input) -> IParseResult<'_, ExpressionAtom> {
+fn parse_func_call_exists(input: Input) -> IParseResult<'_, Expression> {
     map_res(
         preceded(
             tag_no_case("EXISTS"),
@@ -104,20 +107,23 @@ fn parse_func_call_exists(input: Input) -> IParseResult<'_, ExpressionAtom> {
                 space_before(tag("]")),
             ),
         ),
-        |param| ok(ExpressionAtom::FuncCall(FuncCall::exists(param))),
+        move |param| {
+            let context = input.context();
+            if context.const_fold() {
+                return ok(Expression::lit(bool_to_float(
+                    context.named_param_exists(&param),
+                )));
+            }
+            ok(Expression::func_call(FuncCall::exists(param)))
+        },
     )
     .parse(input)
 }
 
-fn parse_func_call_unary(input: Input) -> IParseResult<ExpressionAtom> {
+fn parse_func_call_unary(input: Input) -> IParseResult<Expression> {
     map_res(
         tuple((parse_unary_func_name, parse_group)),
-        |(name, arg)| {
-            ok(ExpressionAtom::FuncCall(FuncCall::unary(
-                name,
-                Box::new(arg),
-            )))
-        },
+        |(name, arg)| ok(Expression::func_call(FuncCall::unary(name, Box::new(arg)))),
     )
     .parse(input)
 }
@@ -144,7 +150,7 @@ fn parse_group(input: Input) -> IParseResult<'_, Expression> {
 }
 
 fn parse_factor(input: Input) -> IParseResult<'_, Expression> {
-    space_before(alt((map_res_into(parse_atom), parse_group)))(input)
+    space_before(alt((map_res_into_ok(parse_atom), parse_group)))(input)
 }
 
 fn parse_expression_generic<'a>(
@@ -162,7 +168,13 @@ fn parse_expression_generic<'a>(
                 bind!(next_levels, parse_expression_generic),
             ),
             move || init.clone(),
-            |acc, (bin_op, val)| {
+            move |acc, (bin_op, val)| {
+                let context = input.context();
+                if context.const_fold() {
+                    if let Some(value) = bin_op.eval(&acc, &val, context) {
+                        return ok(Expression::lit(value));
+                    }
+                }
                 ok(Expression::BinOpExpr {
                     op: bin_op,
                     left: Box::new(acc),
@@ -211,6 +223,7 @@ where
 mod test {
     extern crate std;
     use super::*;
+    use crate::parser::test::TestContext;
 
     #[rstest::rstest]
     #[case("+", Some(ArithmeticBinOp::Add), [ArithmeticBinOp::Add.into(), ArithmeticBinOp::Sub.into()])]
@@ -235,7 +248,11 @@ mod test {
         #[case] allowed: [BinOp; N],
     ) {
         let list = BinOpArray::from_list(allowed);
-        match (expected.map(|e| e.into()), parse_binop(&list, input.into())) {
+        let context = TestContext::default().const_fold(false);
+        match (
+            expected.map(|e| e.into()),
+            parse_binop(&list, Input::new(input.as_bytes(), &context)),
+        ) {
             (Some(expected), Ok((_, parsed))) => assert_eq!(parsed, expected),
             (None, Err(_)) => {}
             (a, b) => panic!("unexpected result: expected={:?} actual={:?}", a, b),

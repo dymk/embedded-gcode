@@ -1,4 +1,4 @@
-use crate::parser::{parse_utils::number_code, Input};
+use crate::parser::{parse_utils::number_code, test::TestContext, Input};
 use core::fmt::Debug;
 
 #[track_caller]
@@ -17,12 +17,13 @@ fn assert_same_input<E: Debug>(
 
 #[test]
 fn test_parse_number_code() {
-    let result = number_code("0")(b"0"[..].into());
+    let context = TestContext::default().const_fold(false);
+    let result = number_code("0")(Input::new(b"0", &context));
     assert_same_input(Ok((b"", b"0")), result);
 
-    let result = number_code("0")(b"00"[..].into());
+    let result = number_code("0")(Input::new(b"00", &context));
     assert!(result.is_err(), "{:?}", result);
 
-    let result = number_code("1")(b"1 "[..].into());
+    let result = number_code("1")(Input::new(b"1 ", &context));
     assert_same_input(Ok((b" ", b"1")), result);
 }
